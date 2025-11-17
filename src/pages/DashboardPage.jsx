@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import PriceChart from "../components/charts/PriceChart";
 import PortfolioTable from "../components/portfolio/PortfolioTable";
 import AiAnalysisPanel from "../components/analysis/AiAnalysisPanel";
+import SearchBar from "../components/SearchBar"; // 🔹 추가
 
 // 테스트용 더미 캔들 데이터
 const MOCK_CANDLES = [
@@ -13,7 +14,7 @@ const MOCK_CANDLES = [
     { time: "2025-01-05", open: 70700, high: 71300, low: 70300, close: 71200 },
 ];
 
-// 테스트용 더미 포트폴리오 데이터
+// 테스트용 포트폴리오 데이터
 const MOCK_PORTFOLIO = [
     {
         symbol: "TSLL",
@@ -62,24 +63,28 @@ const MOCK_PORTFOLIO = [
 ];
 
 const DashboardPage = () => {
-    const [symbol, setSymbol] = useState("005930");
-    const [candles, setCandles] = useState(MOCK_CANDLES);
+    const [symbol, setSymbol] = useState("005930");       // 선택된 종목 코드
+    const [candles, setCandles] = useState(MOCK_CANDLES); // 차트 데이터
 
-    // chart / ai
+    // chart / ai toggle
     const [viewMode, setViewMode] = useState("chart");
 
+    // "분석하기" 버튼 클릭
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!symbol.trim()) return;
 
-        // TODO: 나중에 실제 API 호출로 교체
+        // TODO: 여기서 symbol 기준으로
+        //  - 캔들 데이터 로딩
+        //  - AI 분석 API 호출 등 연결
         setCandles(MOCK_CANDLES);
     };
 
     return (
         <div className="text-slate-100">
-            {/* 상단 영역: 좌측 뷰 토글, 우측 종목 검색폼 */}
+            {/* 상단: 뷰 선택 / 종목 검색 */}
             <div className="mb-3 flex items-center justify-between">
+                {/* 차트 <-> AI 토글 */}
                 <div className="inline-flex items-center rounded-full bg-slate-900/80 p-1 border border-slate-800">
                     <button
                         type="button"
@@ -105,13 +110,22 @@ const DashboardPage = () => {
                     </button>
                 </div>
 
+                {/* 종목 검색 + 분석하기 버튼 */}
                 <form onSubmit={handleSubmit} className="flex items-center gap-2">
-                    <input
-                        className="w-64 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-500"
+                    {/* 🔹 Finnhub 기반 자동완성 SearchBar 사용 */}
+                    <SearchBar
                         value={symbol}
-                        onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                        placeholder="종목 코드를 입력하세요 (예: 005930)"
+                        onSelect={(sym, item) => {
+                            // sym: "005930" 같은 티커
+                            // item.name: "삼성전자" (백엔드에서 변환해 준 이름)
+                            setSymbol(sym);
+                            // 여기서 심볼 변경 시 데이터 로딩 트리거해도 됨
+                            // loadCandles(sym);
+                            // loadAiAnalysis(sym);
+                        }}
+                        placeholder="종목명 또는 코드 검색"
                     />
+
                     <button
                         type="submit"
                         className="rounded-md bg-sky-500 px-4 py-2 text-xs font-medium text-white hover:bg-sky-600"
@@ -121,7 +135,7 @@ const DashboardPage = () => {
                 </form>
             </div>
 
-            {/* 차트 / AI 분석 카드 */}
+            {/* 차트 또는 AI 패널 */}
             <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/80 px-5 py-4 shadow-md">
                 <div className="mb-2 text-xs font-medium text-slate-300">
                     {viewMode === "chart"
@@ -140,7 +154,7 @@ const DashboardPage = () => {
                 </div>
             </section>
 
-            {/* 포트폴리오 테이블 */}
+            {/* 포트폴리오 */}
             <PortfolioTable items={MOCK_PORTFOLIO} />
         </div>
     );

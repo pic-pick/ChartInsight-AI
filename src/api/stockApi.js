@@ -19,3 +19,16 @@ export const fetchStockDecisionInsight = async (symbol) => {
     const res = await apiClient.get(`/stocks/${symbol}/decision-insight`);
     return res.data;
 };
+
+export async function fetchAiAnalysis(symbol) {
+    const res = await apiClient.get(`/stocks/${symbol}/ai-analysis`);
+    return res.data;
+}
+
+export async function searchStocks(q) {
+    if (!q || !q.trim()) return [];
+    const res = await apiClient.get("/stocks/search", {
+        params: { q },
+    });
+    return res.data;
+}
