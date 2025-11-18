@@ -1,70 +1,100 @@
-# Getting Started with Create React App
+# 📊 ChartInsight AI  
+### AI 기반 전략 분석·차트 시각화 의사결정 보조 시스템
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+---
 
-## Available Scripts
+## 🚀 프로젝트 소개
 
-In the project directory, you can run:
+**ChartInsight AI**는 주식 시장 데이터를 기반으로  
+기술적 지표 분석과 간단한 머신러닝 기반 예측을 활용하여  
+종목의 추세·리스크·전략 시그널을 자동 분석하는  
+**의사결정 보조 웹 시스템**입니다.
 
-### `npm start`
+본 프로젝트는 딥러닝을 사용하지 않지만,  
+다음과 같은 **AI 요소**가 실제로 포함되어 있습니다:
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 🧠 AI가 사용되는 부분
 
-### `npm test`
+### ✔ 1. 시계열 기반 예측 밴드 생성
+- ARIMA, Linear Regression 등 간단한 예측 모델 적용  
+- 미래 가격을 직접 맞추기보다는  
+  **예측 가격 범위(Confidence Band)**를 제공  
+- 차트 위에 예측 구간을 밴드 형태로 표시
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+### ✔ 2. 자동 분석 코멘트 생성 (Rule-based NLP)
+지표 계산 결과를 조합해  
+사용자에게 자연스러운 문장을 자동으로 생성합니다.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+예시:
+- “단기 변동성이 중기 대비 상승하여 리스크가 증가하는 구간입니다.”
+- “SMA20이 SMA60을 상향 돌파했습니다. 추세 전환 가능성이 있습니다.”
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+---
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### ✔ 3. 전략 상태 평가 모델
+기술적 지표(변동성, 모멘텀, 이동평균 기울기 등)를 기반으로  
+종목의 상태를 **점수화하거나, Buy/Hold/Sell로 분류**합니다.
 
-### `npm run eject`
+- 모멘텀 점수 (0–100)
+- 리스크 레벨 (Low / Medium / High)
+- 전략 신호 자동 판단
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+이는 규칙 기반 로직 + 간단한 ML 모델을 활용합니다.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+---
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## ✨ 주요 기능
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### 📈 차트 시각화
+- OHLCV 캔들 차트  
+- SMA20, SMA60  
+- Lightweight-charts 기반  
+- **AI 예측 밴드 표시**
 
-## Learn More
+---
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### 🔥 전략 분석
+- 이동평균 교차 전략  
+- 볼린저밴드 역추세 전략  
+- 모멘텀 기반 전략  
+- **전략별 자동 점수화·신호 제공**
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+---
 
-### Code Splitting
+### 🛡 리스크 분석
+- 단기/중기 변동성 비교  
+- 최근 고점 대비 최대 낙폭(MDD)  
+- AI 자동 분석 코멘트 생성  
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+---
 
-### Analyzing the Bundle Size
+### 💼 포트폴리오
+- 보유 종목 등록·삭제  
+- 수량/평단 입력  
+- 평가금액·수익률 계산  
+- 종목별 AI 전략 분석 결과 제공  
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+---
 
-### Making a Progressive Web App
+## 🏗 기술 스택
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+### Frontend
+- React (JSX)  
+- Lightweight-charts  
+- Axios  
 
-### Advanced Configuration
+### Backend
+- FastAPI  
+- Python  
+- Pandas / Numpy  
+- yfinance 또는 pykrx  
+- Statsmodels(ARIMA) / scikit-learn  
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+### Database
+- SQLite 또는 PostgreSQL  
 
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+---

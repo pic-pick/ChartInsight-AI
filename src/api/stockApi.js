@@ -1,21 +1,45 @@
+// src/api/stockApi.js
 import apiClient from "./client";
 
-// 타입 참고용 주석: 실제로는 JS에서 자유롭게 사용
-// summary: { symbol, name, currentPrice, changeRate, volatility, riskScore, comment }
-
+// 종목 요약 정보 (현재가, 변동률, 리스크 등)
 export const fetchStockSummary = async (symbol) => {
+    if (!symbol) throw new Error("symbol is required");
     const res = await apiClient.get(`/stocks/${symbol}/summary`);
     return res.data;
 };
 
-export const fetchStockCandles = async (symbol, period = "6mo") => {
-    const res = await apiClient.get(`/stocks/${symbol}/ohlcv`, {
-        params: { period },
-    });
-    return res.data; // [{time, open, high, low, close, volume}]
-};
+// 캔들 데이터 (차트용)
 
+// 타임프레임: "D"(일봉) | "W"(주봉) | "M"(월봉) | "Y"(년봉)
+export async function fetchStockCandles(symbol, timeframe = "D") {
+    const res = await apiClient.get(
+        `/stocks/${encodeURIComponent(symbol)}/ohlcv`,
+        {
+            params: { tf: timeframe },
+        }
+    );
+    return res.data;
+}
+
+// 의사결정용 수치형 인사이트 (스코어, 지표들)
 export const fetchStockDecisionInsight = async (symbol) => {
+    if (!symbol) throw new Error("symbol is required");
     const res = await apiClient.get(`/stocks/${symbol}/decision-insight`);
     return res.data;
+};
+
+// LLM 기반 자연어 AI 분석
+export const fetchAiAnalysis = async (symbol) => {
+    if (!symbol) throw new Error("symbol is required");
+    const res = await apiClient.get(`/stocks/${symbol}/ai-analysis`);
+    return res.data;
+};
+
+// 종목 검색 (자동완성)
+export const searchStocks = async (q) => {
+    if (!q || !q.trim()) return [];
+    const res = await apiClient.get("/stocks/search", {
+        params: { q },
+    });
+    return res.data; // [{ symbol, name, market }]
 };

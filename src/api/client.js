@@ -1,9 +1,8 @@
 import axios from "axios";
 
 const apiClient = axios.create({
-    baseURL: "http://localhost:8000/api", // FastAPI 백엔드 주소
-    timeout: 10000,
+    baseURL: "http://192.168.0.53:8000/api", // 👈 여기 IP를 지금 쓰는 거랑 맞추기
+    timeout: 5000,
 });
 
-// 반드시 필요!!
 export default apiClient;

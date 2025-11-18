@@ -1,9 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module type="JAVA_MODULE" version="4">
-  <component name="NewModuleRootManager" inherit-compiler-output="true">
+  <component name="FacetManager">
+    <facet type="Python" name="Python">
+      <configuration sdkName="Python 3.13 virtualenv at ~/chartinsight-ai/backend/venv" />
+    </facet>
+  </component>
+  <component name="NewModuleRootManager">
+    <output url="file://$MODULE_DIR$/backend/venv/bin" />
+    <output-test url="file://$MODULE_DIR$/backend/venv/bin" />
     <exclude-output />
     <content url="file://$MODULE_DIR$" />
-    <orderEntry type="inheritedJdk" />
+    <orderEntry type="jdk" jdkName="Python 3.9" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" name="groovy-5.0.0" level="project" />
+    <orderEntry type="library" name="Python 3.13 virtualenv at ~/chartinsight-ai/backend/venv interpreter library" level="application" />
   </component>
 </module>
