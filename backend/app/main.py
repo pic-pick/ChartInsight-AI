@@ -1,25 +1,22 @@
 # app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import stocks
-from routers import symbols
+from app.routers import stocks
 
-app = FastAPI(title="ChartInsight AI API")
 app = FastAPI()
 
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://192.168.0.53:3000",  # 👈 지금 접속하는 주소
+]
 
-# 프론트(React)에서 호출할 수 있도록 CORS 허용
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=origins,   # 개발 중에는 ["*"]로 풀어도 됨
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(stocks.router, prefix="/api")
-app.include_router(symbols.router)
-
-@app.get("/api/health")
-async def health_check():
-    return {"status": "ok"}
