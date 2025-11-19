@@ -43,3 +43,10 @@ export const searchStocks = async (q) => {
     });
     return res.data; // [{ symbol, name, market }]
 };
+
+
+export async function fetchForecastBand(symbol) {
+    // symbol 은 이미 005930.KS / AAPL 같은 yfinance 심볼이라고 가정
+    const res = await apiClient.get(`/forecast/${symbol}`);
+    return res.data; // [{time, lower, upper, mean}, ...]
+}

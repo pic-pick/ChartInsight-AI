@@ -60,6 +60,7 @@ const DashboardPage = () => {
     const [market, setMarket] = useState("KRX");
 
     const [candles, setCandles] = useState([]);
+    const [forecastBand, setForecastBand] = useState([]); // ✅ 예측 밴드
     const [viewMode, setViewMode] = useState("chart"); // "chart" | "ai"
 
     // 기간: 일 / 주 / 월 / 년
@@ -281,7 +282,7 @@ const DashboardPage = () => {
                                     아직 차트 데이터가 없습니다. 상단에서 종목을 검색해 주세요.
                                 </div>
                             ) : (
-                                <PriceChart candles={candles} chartType={chartType} />
+                                <PriceChart candles={candles} chartType={chartType} isKorean={isKoreanMarket} forecastBand={forecastBand}/>
                             )}
                         </div>
                     ) : (

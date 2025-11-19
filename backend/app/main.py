@@ -1,14 +1,14 @@
 # app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import stocks
+from .routers import stocks, forecast
 
 app = FastAPI()
 
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://192.168.0.53:3000",  # 👈 지금 접속하는 주소
+    "http://192.168.0.53:3000",  # 지금 접속하는 주소
 ]
 
 app.add_middleware(
@@ -20,3 +20,5 @@ app.add_middleware(
 )
 
 app.include_router(stocks.router, prefix="/api")
+
+app.include_router(forecast.router, prefix="/api")
