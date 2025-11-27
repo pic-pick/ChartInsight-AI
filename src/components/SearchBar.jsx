@@ -13,11 +13,11 @@ import { searchStocks } from "../api/stockApi";
  *  [{ symbol: "005930", name: "삼성전자" }, ...]
  */
 const SearchBar = ({
-                       value = "",
-                       onSelect,
-                       placeholder = "종목명 또는 티커를 입력하세요",
-                       className = "",
-                   }) => {
+    value = "",
+    onSelect,
+    placeholder = "종목명 또는 티커를 입력하세요",
+    className = "",
+}) => {
     const [input, setInput] = useState(value);
     const [results, setResults] = useState([]);
     const [open, setOpen] = useState(false);
@@ -121,10 +121,10 @@ const SearchBar = ({
     return (
         <div
             ref={wrapperRef}
-            className={`relative text-xs ${className}`}
+            className={`relative w-full text-xs ${className}`}
         >
             <input
-                className="w-64 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-500"
+                className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-500"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onFocus={() => {
