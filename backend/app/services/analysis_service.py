@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class BandSummary:
+class 밴드요약:
     horizon_label: str
     upper: float
     lower: float
@@ -31,7 +31,7 @@ class BandSummary:
 
 
 @dataclass
-class IndicatorSnapshot:
+class 지표스냅샷:
     close: float
     change_rate: float
     sma20: float
@@ -54,7 +54,7 @@ class IndicatorSnapshot:
     vkospi_change_pct: Optional[float] = None
 
 
-def _compute_true_range(df: pd.DataFrame) -> pd.Series:
+def _진폭_계산(df: pd.DataFrame) -> pd.Series:
     prev_close = df["Close"].shift(1)
     high_low = df["High"] - df["Low"]
     high_close = (df["High"] - prev_close).abs()
@@ -62,7 +62,7 @@ def _compute_true_range(df: pd.DataFrame) -> pd.Series:
     return pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
 
 
-def _calculate_indicators(df: pd.DataFrame) -> IndicatorSnapshot:
+def _기술지표_계산(df: pd.DataFrame) -> 지표스냅샷:
     close = df["Close"].dropna()
     if close.empty:
         raise ValueError("Close series is empty")
@@ -79,7 +79,7 @@ def _calculate_indicators(df: pd.DataFrame) -> IndicatorSnapshot:
     returns = close.pct_change().dropna()
     hv20_pct = float(returns.tail(20).std() * np.sqrt(252) * 100) if len(returns) >= 20 else 0.0
 
-    tr = _compute_true_range(df)
+    tr = _진폭_계산(df)
     atr14 = float(tr.rolling(window=14).mean().iloc[-1]) if len(tr) >= 14 else 0.0
 
     rolling_max = close.cummax()
@@ -119,9 +119,9 @@ def _calculate_indicators(df: pd.DataFrame) -> IndicatorSnapshot:
     # 투자심리도: 최근 10일 상승일 비율
     up_ratio = close.diff().gt(0).tail(10).mean() * 100 if len(close) >= 10 else 50.0
 
-    vkospi_level, vkospi_change_pct = _fetch_vkospi()
+    vkospi_level, vkospi_change_pct = _vkospi_조회()
 
-    return IndicatorSnapshot(
+    return 지표스냅샷(
         close=last_close,
         change_rate=change_rate,
         sma20=sma20,
@@ -145,7 +145,7 @@ def _calculate_indicators(df: pd.DataFrame) -> IndicatorSnapshot:
     )
 
 
-def _fetch_vkospi() -> tuple[Optional[float], Optional[float]]:
+def _vkospi_조회() -> tuple[Optional[float], Optional[float]]:
     """Pull the latest VKOSPI level and daily change as a market sentiment proxy."""
 
     try:
@@ -163,7 +163,7 @@ def _fetch_vkospi() -> tuple[Optional[float], Optional[float]]:
         return None, None
 
 
-def _score_volatility(hv20_pct: float) -> int:
+def _변동성점수_계산(hv20_pct: float) -> int:
     """Map realized volatility(HV20) to 0~100 with softer scaling.
 
     Typical HV20가 15~35% 사이에 분포하는 점을 감안해, 완만한 곡선으로 점수를
@@ -179,7 +179,7 @@ def _score_volatility(hv20_pct: float) -> int:
     return int(max(0, min(100, round(interpolated))))
 
 
-def _score_confidence(
+def _신뢰도점수_계산(
     trend_score: int,
     momentum_score: int,
     volatility_score: int,
@@ -196,7 +196,7 @@ def _score_confidence(
     return int(max(0, min(100, round(score))))
 
 
-def _score_liquidity(avg_volume: float) -> float:
+def _유동성보너스_계산(avg_volume: float) -> float:
     """Estimate a small bonus for 안정적인 대형주/거래대금 기반 유동성."""
 
     if avg_volume is None or np.isnan(avg_volume) or avg_volume <= 0:
@@ -207,7 +207,7 @@ def _score_liquidity(avg_volume: float) -> float:
     return min(8.0, scaled)
 
 
-def _band_from_forecast(symbol: str, horizon_days: int = 63) -> Optional[BandSummary]:
+def _예측밴드_요약(symbol: str, horizon_days: int = 63) -> Optional[밴드요약]:
     try:
         band_points = get_forecast_band(symbol, horizon=horizon_days)
         if not band_points:
@@ -216,13 +216,13 @@ def _band_from_forecast(symbol: str, horizon_days: int = 63) -> Optional[BandSum
         upper = max(p["upper"] for p in band_points)
         lower = min(p["lower"] for p in band_points)
         center = band_points[-1]["mean"]
-        return BandSummary(horizon_label="3개월 ARIMA", upper=upper, lower=lower, center=center)
+        return 밴드요약(horizon_label="3개월 ARIMA", upper=upper, lower=lower, center=center)
     except Exception:
         logger.exception("Failed to fetch forecast band for analysis: %s", symbol)
         return None
 
 
-def _build_narrative(ind: IndicatorSnapshot, band: Optional[BandSummary]) -> Dict[str, str]:
+def _내러티브_작성(ind: 지표스냅샷, band: Optional[밴드요약]) -> Dict[str, str]:
     ma_gap_pct = (ind.sma20 / ind.sma60 - 1) * 100 if ind.sma60 else 0
     trend_bias = "완만한 상승" if ma_gap_pct > 1 else "중립" if -1 <= ma_gap_pct <= 1 else "하락"
     risk_label = "높음" if ind.hv20_pct > 45 or ind.mdd_pct < -25 else "중간" if ind.hv20_pct > 25 else "낮음"
@@ -261,7 +261,7 @@ def _build_narrative(ind: IndicatorSnapshot, band: Optional[BandSummary]) -> Dic
     }
 
 
-def _build_alerts(ind: IndicatorSnapshot, band: Optional[BandSummary]) -> List[str]:
+def _알림_리스트(ind: 지표스냅샷, band: Optional[밴드요약]) -> List[str]:
     alerts: List[str] = []
 
     if band:
@@ -302,7 +302,7 @@ def _build_alerts(ind: IndicatorSnapshot, band: Optional[BandSummary]) -> List[s
     return alerts[:5]
 
 
-def build_decision_insight(symbol: str, period: str = "1y") -> Dict:
+def 결정인사이트_생성(symbol: str, period: str = "1y") -> Dict:
     """Create a compact AI 분석 payload with indicators + forecast band."""
 
     try:
@@ -311,18 +311,18 @@ def build_decision_insight(symbol: str, period: str = "1y") -> Dict:
         if hist.empty:
             raise ValueError(f"No historical data for symbol={symbol}")
 
-        ind = _calculate_indicators(hist)
+        ind = _기술지표_계산(hist)
 
         trend_score = 70 if ind.sma20 > ind.sma60 else 45
         momentum_score = min(100, max(0, 50 + ind.momentum20_pct))
-        volatility_score = _score_volatility(ind.hv20_pct)
-        liquidity_bonus = _score_liquidity(ind.volume_avg20)
+        volatility_score = _변동성점수_계산(ind.hv20_pct)
+        liquidity_bonus = _유동성보너스_계산(ind.volume_avg20)
 
-        band = _band_from_forecast(symbol)
+        band = _예측밴드_요약(symbol)
         band_range_pct = (
             (band.upper - band.lower) / band.center if band and band.center else 0.0
         )
-        confidence = _score_confidence(
+        confidence = _신뢰도점수_계산(
             trend_score, momentum_score, volatility_score, band_range_pct, liquidity_bonus
         )
 
@@ -343,8 +343,8 @@ def build_decision_insight(symbol: str, period: str = "1y") -> Dict:
             + (f"VKOSPI {ind.vkospi_level:.1f} (변동성 {ind.vkospi_change_pct:+.1f}%)" if ind.vkospi_level else "VKOSPI 데이터 없음")
         )
 
-        narrative = _build_narrative(ind, band)
-        alerts = _build_alerts(ind, band)
+        narrative = _내러티브_작성(ind, band)
+        alerts = _알림_리스트(ind, band)
 
         return {
             "symbol": symbol,

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import PriceChart from "../components/charts/PriceChart";
 import PortfolioTable from "../components/portfolio/PortfolioTable";
-import AiAnalysisPanel from "../components/analysis/AiAnalysisPanel";
+import Ai분석패널 from "../components/analysis/AiAnalysisPanel";
 import SearchBar from "../components/SearchBar";
 import {
     fetchForecastBand,
@@ -13,165 +13,157 @@ import { useUserPortfolio } from "../context/UserPortfolioContext";
 
 const DashboardPage = () => {
     const { holdings } = useUserPortfolio();
-    const [symbol, setSymbol] = useState("005930");
-    const [symbolName, setSymbolName] = useState("삼성전자");
-    const [market, setMarket] = useState("KRX");
+    const [종목코드, 종목코드설정] = useState("005930");
+    const [종목이름, 종목이름설정] = useState("삼성전자");
+    const [시장구분, 시장구분설정] = useState("KRX");
 
-    const [candles, setCandles] = useState([]);
-    const [forecastBand, setForecastBand] = useState([]); // ✅ 예측 밴드
-    const [forecastMonths, setForecastMonths] = useState(3); // 1~6개월 사이 선택
-    const [accuracy, setAccuracy] = useState(null);
-    const [viewMode, setViewMode] = useState("chart"); // "chart" | "ai"
+    const [캔들목록, 캔들설정] = useState([]);
+    const [예측밴드, 예측밴드설정] = useState([]); // ✅ 예측 밴드
+    const [예측개월수, 예측개월수설정] = useState(3); // 1~6개월 사이 선택
+    const [정확도, 정확도설정] = useState(null);
+    const [보기모드, 보기모드설정] = useState("chart"); // "chart" | "ai"
 
     // 기간: 일 / 주 / 월 / 년
-    const [timeframe, setTimeframe] = useState("D"); // "D" | "W" | "M" | "Y"
-    const [chartType, setChartType] = useState("candlestick"); // "candlestick" | "line"
+    const [차트주기, 차트주기설정] = useState("D"); // "D" | "W" | "M" | "Y"
+    const [차트유형, 차트유형설정] = useState("candlestick"); // "candlestick" | "line"
 
-    const [isLoadingCandles, setIsLoadingCandles] = useState(false);
-    const [candlesError, setCandlesError] = useState(null);
-    const [isLoadingForecast, setIsLoadingForecast] = useState(false);
-    const [forecastError, setForecastError] = useState(null);
-    const [isLoadingAccuracy, setIsLoadingAccuracy] = useState(false);
-    const [accuracyError, setAccuracyError] = useState(null);
+    const [캔들로딩중, 캔들로딩설정] = useState(false);
+    const [캔들오류, 캔들오류설정] = useState(null);
+    const [예측로딩중, 예측로딩설정] = useState(false);
+    const [예측오류, 예측오류설정] = useState(null);
+    const [정확도로딩중, 정확도로딩설정] = useState(false);
+    const [정확도오류, 정확도오류설정] = useState(null);
 
     // 마지막 캔들 기준 현재가
-    const lastPrice = useMemo(
-        () => (candles.length ? candles[candles.length - 1].close : null),
-        [candles]
+    const 현재가 = useMemo(
+        () => (캔들목록.length ? 캔들목록[캔들목록.length - 1].close : null),
+        [캔들목록]
     );
 
-    const isKoreanMarket = useMemo(
+    const 국내시장여부 = useMemo(
         () =>
             ["KRX", "KS", "KQ", "KOSPI", "KOSDAQ"].includes(
-                (market || "").toUpperCase()
+                (시장구분 || "").toUpperCase()
             ),
-        [market]
+        [시장구분]
     );
 
-    const formattedLastPrice = useMemo(() => {
-        if (lastPrice == null) return "-";
-        if (isKoreanMarket) {
-            return `${Number(lastPrice).toLocaleString("ko-KR")}원`;
+    const 현재가표시 = useMemo(() => {
+        if (현재가 == null) return "-";
+        if (국내시장여부) {
+            return `${Number(현재가).toLocaleString("ko-KR")}원`;
         }
-        return `$${Number(lastPrice).toFixed(2)}`;
-    }, [lastPrice, isKoreanMarket]);
+        return `$${Number(현재가).toFixed(2)}`;
+    }, [현재가, 국내시장여부]);
 
     // 외부 서비스용 심볼 포맷 변환
-    const getProviderSymbol = (sym, mkt) => {
+    const 외부심볼변환 = (sym, mkt) => {
         if (!sym) return "";
 
         const upper = (mkt || "").toUpperCase();
 
-        // 미국
-        if (upper === "US") return sym;
-
-        // 한국 KOSPI / KRX
-        if (["KS", "KOSPI", "KRX"].includes(upper)) {
-            return `${sym}.KS`;
-        }
-        // 한국 KOSDAQ
-        if (["KQ", "KOSDAQ"].includes(upper)) {
-            return `${sym}.KQ`;
-        }
+        if (upper === "US") return sym; // 미국
+        if (["KS", "KOSPI", "KRX"].includes(upper)) return `${sym}.KS`; // 한국 KOSPI / KRX
+        if (["KQ", "KOSDAQ"].includes(upper)) return `${sym}.KQ`; // 한국 KOSDAQ
 
         return sym;
     };
 
-    const monthsToBusinessDays = (months) => Math.max(1, Math.round(months * 21));
+    const 개월수를영업일로 = (months) => Math.max(1, Math.round(months * 21));
 
-    // ✅ symbol / market / timeframe 이 바뀔 때마다 자동으 캔들 로딩
+    // ✅ 종목/시장/차트주기 변경 시 자동 캔들 로딩
     useEffect(() => {
-        if (!symbol) return;
+        if (!종목코드) return;
 
-        const loadCandles = async () => {
+        const 캔들불러오기 = async () => {
             try {
-                setIsLoadingCandles(true);
-                setCandlesError(null);
+                캔들로딩설정(true);
+                캔들오류설정(null);
 
-                const providerSymbol = getProviderSymbol(symbol, market);
-                const data = await fetchStockCandles(providerSymbol, timeframe);
-                setCandles(data || []);
+                const providerSymbol = 외부심볼변환(종목코드, 시장구분);
+                const data = await fetchStockCandles(providerSymbol, 차트주기);
+                캔들설정(data || []);
             } catch (err) {
                 console.error("캔들 데이터 로딩 오류:", err);
-                setCandlesError("차트 데이터를 불러오는 중 문제가 발생했습니다.");
-                setCandles([]);
+                캔들오류설정("차트 데이터를 불러오는 중 문제가 발생했습니다.");
+                캔들설정([]);
             } finally {
-                setIsLoadingCandles(false);
+                캔들로딩설정(false);
             }
         };
 
-        loadCandles();
-    }, [symbol, market, timeframe]);
+        캔들불러오기();
+    }, [종목코드, 시장구분, 차트주기]);
 
-    const TIMEFRAME_OPTIONS = [
+    const 차트기간옵션 = [
         { value: "D", label: "일" },
         { value: "W", label: "주" },
         { value: "M", label: "월" },
         { value: "Y", label: "년" },
     ];
 
-    const FORECAST_RANGE_OPTIONS = [
+    const 예측범위옵션 = [
         { value: 1, label: "1개월" },
         { value: 3, label: "3개월" },
         { value: 6, label: "6개월" },
     ];
 
     useEffect(() => {
-        if (!symbol) return;
+        if (!종목코드) return;
 
-        const loadForecast = async () => {
+        const 예측불러오기 = async () => {
             try {
-                setIsLoadingForecast(true);
-                setForecastError(null);
+                예측로딩설정(true);
+                예측오류설정(null);
 
-                const providerSymbol = getProviderSymbol(symbol, market);
-                const horizonDays = monthsToBusinessDays(forecastMonths);
+                const providerSymbol = 외부심볼변환(종목코드, 시장구분);
+                const horizonDays = 개월수를영업일로(예측개월수);
                 const data = await fetchForecastBand(providerSymbol, horizonDays);
-                setForecastBand(data || []);
+                예측밴드설정(data || []);
             } catch (err) {
                 console.error("예측 밴드 로딩 오류:", err);
-                setForecastError("예측 밴드를 불러오는 중 문제가 발생했습니다.");
-                setForecastBand([]);
+                예측오류설정("예측 밴드를 불러오는 중 문제가 발생했습니다.");
+                예측밴드설정([]);
             } finally {
-                setIsLoadingForecast(false);
+                예측로딩설정(false);
             }
         };
 
-        loadForecast();
-    }, [symbol, market, forecastMonths]);
+        예측불러오기();
+    }, [종목코드, 시장구분, 예측개월수]);
 
     useEffect(() => {
-        if (!symbol) return;
+        if (!종목코드) return;
 
-        const loadAccuracy = async () => {
+        const 정확도불러오기 = async () => {
             try {
-                setIsLoadingAccuracy(true);
-                setAccuracyError(null);
+                정확도로딩설정(true);
+                정확도오류설정(null);
 
-                const providerSymbol = getProviderSymbol(symbol, market);
-                const holdoutDays = monthsToBusinessDays(forecastMonths);
+                const providerSymbol = 외부심볼변환(종목코드, 시장구분);
+                const holdoutDays = 개월수를영업일로(예측개월수);
                 const metrics = await fetchForecastAccuracy(providerSymbol, holdoutDays);
-                setAccuracy(metrics);
+                정확도설정(metrics);
             } catch (err) {
                 console.error("정확도 검증 오류:", err);
-                setAccuracy(null);
-                setAccuracyError("최근 홀드아웃 예측 정확도를 계산하지 못했습니다.");
+                정확도설정(null);
+                정확도오류설정("최근 홀드아웃 예측 정확도를 계산하지 못했습니다.");
             } finally {
-                setIsLoadingAccuracy(false);
+                정확도로딩설정(false);
             }
         };
 
-        loadAccuracy();
-    }, [symbol, market, forecastMonths]);
+        정확도불러오기();
+    }, [종목코드, 시장구분, 예측개월수]);
 
-    const changeRate = useMemo(() => {
-        if (!candles || candles.length < 2) return null;
-        const prevClose = candles[candles.length - 2]?.close;
+    const 등락률 = useMemo(() => {
+        if (!캔들목록 || 캔들목록.length < 2) return null;
+        const prevClose = 캔들목록[캔들목록.length - 2]?.close;
         if (!prevClose) return null;
-        return ((lastPrice - prevClose) / prevClose) * 100;
-    }, [candles, lastPrice]);
+        return ((현재가 - prevClose) / prevClose) * 100;
+    }, [캔들목록, 현재가]);
 
-    const changeBadgeClass = changeRate != null && changeRate >= 0
+    const 등락배지클래스 = 등락률 != null && 등락률 >= 0
         ? "bg-rose-500/15 text-rose-200"
         : "bg-sky-500/15 text-sky-200";
 
@@ -182,28 +174,28 @@ const DashboardPage = () => {
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
-                            <h1 className="text-2xl font-bold text-slate-50">{symbolName || symbol}</h1>
+                            <h1 className="text-2xl font-bold text-slate-50">{종목이름 || 종목코드}</h1>
                             <span className="rounded-full bg-slate-900 px-2 py-1 text-[11px] font-semibold text-sky-300">
-                                {symbol}
+                                {종목코드}
                             </span>
-                            {market && (
+                            {시장구분 && (
                                 <span className="rounded-full bg-slate-800 px-2 py-1 text-[11px] font-semibold text-slate-200 uppercase">
-                                    {market}
+                                    {시장구분}
                                 </span>
                             )}
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
                             <span className="text-3xl font-extrabold text-slate-50">
-                                {formattedLastPrice !== "-" ? formattedLastPrice : "가격 정보 없음"}
+                                {현재가표시 !== "-" ? 현재가표시 : "가격 정보 없음"}
                             </span>
-                            {changeRate != null && (
-                                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${changeBadgeClass}`}>
-                                    {`${changeRate >= 0 ? "+" : ""}${changeRate.toFixed(2)}%`}
+                            {등락률 != null && (
+                                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${등락배지클래스}`}>
+                                    {`${등락률 >= 0 ? "+" : ""}${등락률.toFixed(2)}%`}
                                 </span>
                             )}
-                            {forecastMonths && (
+                            {예측개월수 && (
                                 <span className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-slate-300">
-                                    미래 {forecastMonths}개월 밴드 추적
+                                    미래 {예측개월수}개월 밴드 추적
                                 </span>
                             )}
                         </div>
@@ -216,9 +208,9 @@ const DashboardPage = () => {
                         <div className="inline-flex w-full justify-end rounded-full border border-slate-800 bg-slate-900/80 p-1 md:w-auto">
                             <button
                                 type="button"
-                                onClick={() => setViewMode("chart")}
+                                onClick={() => 보기모드설정("chart")}
                                 className={`px-3 py-1.5 text-xs rounded-full transition ${
-                                    viewMode === "chart"
+                                    보기모드 === "chart"
                                         ? "bg-sky-500 text-white"
                                         : "text-slate-300 hover:text-slate-100"
                                 }`}
@@ -227,9 +219,9 @@ const DashboardPage = () => {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setViewMode("ai")}
+                                onClick={() => 보기모드설정("ai")}
                                 className={`px-3 py-1.5 text-xs rounded-full transition ${
-                                    viewMode === "ai"
+                                    보기모드 === "ai"
                                         ? "bg-sky-500 text-white"
                                         : "text-slate-300 hover:text-slate-100"
                                 }`}
@@ -240,12 +232,12 @@ const DashboardPage = () => {
 
                         <div className="w-full">
                             <SearchBar
-                                value={symbol}
+                                value={종목코드}
                                 onSelect={(sym, item) => {
                                     console.log("SearchBar에서 선택된 종목:", sym, item);
-                                    setSymbol(sym);
-                                    setMarket(item.market);
-                                    setSymbolName(item.name || sym);
+                                    종목코드설정(sym);
+                                    시장구분설정(item.market);
+                                    종목이름설정(item.name || sym);
                                     // 선택과 동시에 useEffect가 자동으로 차트 리로드
                                 }}
                                 placeholder="종목명 또는 코드 검색"
@@ -262,21 +254,21 @@ const DashboardPage = () => {
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
                         <span>선택된 종목</span>
                         <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-sky-300">
-                            {symbol}
+                            {종목코드}
                         </span>
                     </div>
 
-                    {viewMode === "chart" && (
+                    {보기모드 === "chart" && (
                         <div className="flex flex-wrap items-center gap-3 justify-between sm:justify-end">
                             {/* 기간 버튼: 일 / 주 / 월 / 년 */}
                             <div className="flex items-center gap-1">
-                                {TIMEFRAME_OPTIONS.map((p) => (
+                                {차트기간옵션.map((p) => (
                                     <button
                                         key={p.value}
                                         type="button"
-                                        onClick={() => setTimeframe(p.value)} // ✅ 클릭 즉시 useEffect로 차트 갱신
+                                        onClick={() => 차트주기설정(p.value)} // ✅ 클릭 즉시 useEffect로 차트 갱신
                                         className={`px-2 py-1 text-[11px] rounded-full border transition ${
-                                            timeframe === p.value
+                                            차트주기 === p.value
                                                 ? "bg-sky-500/90 border-sky-400 text-white"
                                                 : "border-slate-700 text-slate-300 hover:border-slate-500"
                                         }`}
@@ -289,13 +281,13 @@ const DashboardPage = () => {
                             {/* 예측 범위 (최대 6개월) */}
                             <div className="flex items-center gap-2 text-[11px] text-slate-400">
                                 <span className="text-slate-500">예측 범위</span>
-                                {FORECAST_RANGE_OPTIONS.map((range) => (
+                                {예측범위옵션.map((range) => (
                                     <button
                                         key={range.value}
                                         type="button"
-                                        onClick={() => setForecastMonths(range.value)}
+                                        onClick={() => 예측개월수설정(range.value)}
                                         className={`px-2 py-1 rounded-full border transition ${
-                                            forecastMonths === range.value
+                                            예측개월수 === range.value
                                                 ? "bg-emerald-600/80 border-emerald-400 text-white"
                                                 : "border-slate-700 text-slate-300 hover:border-slate-500"
                                         }`}
@@ -304,29 +296,29 @@ const DashboardPage = () => {
                                     </button>
                                 ))}
                                 <span className="text-[10px] text-slate-500">
-                                    {isLoadingForecast
+                                    {예측로딩중
                                         ? "예측 업데이트 중..."
-                                        : `미래 ${forecastMonths}개월 밴드`}
+                                        : `미래 ${예측개월수}개월 밴드`}
                                 </span>
-                                {forecastError && (
+                                {예측오류 && (
                                     <span className="text-[10px] text-red-400">
-                                        {forecastError}
+                                        {예측오류}
                                     </span>
                                 )}
                                 <div className="flex items-center gap-1 text-[10px] text-slate-500">
-                                    {isLoadingAccuracy ? (
+                                    {정확도로딩중 ? (
                                         <span>정확도 검증 중...</span>
-                                    ) : accuracyError ? (
-                                        <span className="text-red-400">{accuracyError}</span>
-                                    ) : accuracy ? (
+                                    ) : 정확도오류 ? (
+                                        <span className="text-red-400">{정확도오류}</span>
+                                    ) : 정확도 ? (
                                         <>
                                             <span className="text-slate-400">MAPE</span>
                                             <span className="font-semibold text-emerald-300">
-                                                {accuracy.mape?.toFixed(2)}%
+                                                {정확도.mape?.toFixed(2)}%
                                             </span>
                                             <span className="text-slate-500">· RMSE</span>
                                             <span className="font-semibold text-emerald-300">
-                                                {accuracy.rmse?.toFixed(2)}
+                                                {정확도.rmse?.toFixed(2)}
                                             </span>
                                         </>
                                     ) : null}
@@ -337,9 +329,9 @@ const DashboardPage = () => {
                             <div className="flex items-center gap-1">
                                 <button
                                     type="button"
-                                    onClick={() => setChartType("candlestick")}
+                                    onClick={() => 차트유형설정("candlestick")}
                                     className={`px-2 py-1 text-[11px] rounded-full border transition ${
-                                        chartType === "candlestick"
+                                        차트유형 === "candlestick"
                                             ? "bg-slate-800 border-sky-400 text-sky-300"
                                             : "border-slate-700 text-slate-300 hover:border-slate-500"
                                     }`}
@@ -348,9 +340,9 @@ const DashboardPage = () => {
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => setChartType("line")}
+                                    onClick={() => 차트유형설정("line")}
                                     className={`px-2 py-1 text-[11px] rounded-full border transition ${
-                                        chartType === "line"
+                                        차트유형 === "line"
                                             ? "bg-slate-800 border-sky-400 text-sky-300"
                                             : "border-slate-700 text-slate-300 hover:border-slate-500"
                                     }`}
@@ -362,32 +354,32 @@ const DashboardPage = () => {
                     )}
                 </div>
 
-                <div className={viewMode === "chart" ? "h-[300px] sm:h-[360px]" : ""}>
-                    {viewMode === "chart" ? (
+                <div className={보기모드 === "chart" ? "h-[300px] sm:h-[360px]" : ""}>
+                    {보기모드 === "chart" ? (
                         <div className="h-full rounded-xl bg-slate-950/80 overflow-hidden">
-                            {isLoadingCandles ? (
+                            {캔들로딩중 ? (
                                 <div className="flex h-full items-center justify-center text-xs text-slate-400">
                                     차트 데이터를 불러오는 중입니다...
                                 </div>
-                            ) : candlesError ? (
+                            ) : 캔들오류 ? (
                                 <div className="flex h-full items-center justify-center text-xs text-red-400">
-                                    {candlesError}
+                                    {캔들오류}
                                 </div>
-                            ) : candles.length === 0 ? (
+                            ) : 캔들목록.length === 0 ? (
                                 <div className="flex h-full items-center justify-center text-xs text-slate-500">
                                     아직 차트 데이터가 없습니다. 상단에서 종목을 검색해 주세요.
                                 </div>
                             ) : (
                                 <PriceChart
-                                    candles={candles}
-                                    chartType={chartType}
-                                    isKorean={isKoreanMarket}
-                                    forecastBand={forecastBand}
+                                    candles={캔들목록}
+                                    chartType={차트유형}
+                                    isKorean={국내시장여부}
+                                    forecastBand={예측밴드}
                                 />
                             )}
                         </div>
                     ) : (
-                        <AiAnalysisPanel symbol={symbol} market={market} />
+                        <Ai분석패널 symbol={종목코드} market={시장구분} />
                     )}
                 </div>
             </section>

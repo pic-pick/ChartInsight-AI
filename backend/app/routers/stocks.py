@@ -21,7 +21,7 @@ import pandas as pd
 import yfinance as yf
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from ..services.analysis_service import build_decision_insight
+from ..services.analysis_service import 결정인사이트_생성
 
 # =====================================================================
 # 1. 라우터 기본 설정
@@ -319,7 +319,7 @@ async def get_decision_insight(
     """지표·예측밴드를 결합한 간단한 전략/리스크 인사이트."""
 
     try:
-        insight = build_decision_insight(symbol, period=period)
+        insight = 결정인사이트_생성(symbol, period=period)
         return insight
     except Exception as e:
         logger = logging.getLogger(__name__)
