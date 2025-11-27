@@ -3,7 +3,6 @@ import React, { createContext, useContext, useMemo } from "react";
 const DEFAULT_USER = {
     id: "demo-user",
     name: "데모 회원",
-    tier: "Standard",
     email: "demo@example.com",
 };
 
