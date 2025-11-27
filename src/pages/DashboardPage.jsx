@@ -379,7 +379,7 @@ const DashboardPage = () => {
                     )}
                 </div>
 
-                <div className="h-[360px]">
+                <div className={viewMode === "ai" ? "min-h-[520px]" : "h-[360px]"}>
                     {viewMode === "chart" ? (
                         <div className="h-full rounded-xl bg-slate-950/80 overflow-hidden">
                             {isLoadingCandles ? (
