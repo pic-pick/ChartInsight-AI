@@ -13,6 +13,7 @@ stocks.py
   - GET /api/stocks/{symbol}/ohlcv?tf=D|W|M|Y : 캔들 데이터
 """
 
+import logging
 from pathlib import Path
 from typing import List
 
@@ -20,6 +21,7 @@ import pandas as pd
 import yfinance as yf
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
+from ..services.analysis_service import build_decision_insight
 
 # =====================================================================
 # 1. 라우터 기본 설정
@@ -72,6 +74,20 @@ class StockItem(BaseModel):
     symbol: str
     name: str
     market: str
+
+
+class DecisionInsight(BaseModel):
+    symbol: str
+    last_price: float
+    change_rate: float
+    volatility_score: int
+    confidence: int
+    risk_label: str
+    band: dict | None = None
+    summary: str
+    quick_notes: list[str]
+    actions: list[str]
+    indicators: dict
 
 
 @router.get("/search", response_model=List[StockItem])
@@ -282,3 +298,24 @@ async def get_ohlcv(
     """
     interval = _get_interval(tf)
     return _fetch_candles_yfinance(symbol, interval, tf)
+
+
+# =====================================================================
+# 7. 의사결정 인사이트 (지표 + 예측 밴드 기반)
+# =====================================================================
+
+
+@router.get("/{symbol}/decision-insight", response_model=DecisionInsight)
+async def get_decision_insight(
+    symbol: str,
+    period: str = Query("1y", description="지표 계산을 위한 yfinance 조회 기간"),
+):
+    """지표·예측밴드를 결합한 간단한 전략/리스크 인사이트."""
+
+    try:
+        insight = build_decision_insight(symbol, period=period)
+        return insight
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.exception("decision-insight failed for %s", symbol)
+        raise HTTPException(status_code=500, detail=str(e))

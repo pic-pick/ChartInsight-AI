@@ -399,7 +399,7 @@ const DashboardPage = () => {
                             )}
                         </div>
                     ) : (
-                        <AiAnalysisPanel symbol={symbol} />
+                        <AiAnalysisPanel symbol={symbol} market={market} />
                     )}
                 </div>
             </section>

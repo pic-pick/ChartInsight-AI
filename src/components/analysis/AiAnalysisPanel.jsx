@@ -1,59 +1,33 @@
 // src/components/analysis/AiAnalysisPanel.jsx
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { fetchStockDecisionInsight } from "../../api/stockApi";
 
-const DUMMY_ANALYSIS = {
-    "005930": {
-        name: "삼성전자",
-        market: "KS",
-        currentPrice: 103_500,
-        changeRate: -0.8,
-        volatility: 38,
-        confidence: 72,
-        summary:
-            "단기 조정 구간이지만 중기 추세는 우상향을 유지하고 있습니다. 수급이 완만하게 회복되는 동안 박스권(9.8만~10.8만) 내 매물 소화가 진행 중입니다.",
-        quickNotes: [
-            "최근 4주 평균 거래량 대비 12% 감소로 변동성 완화",
-            "외국인 순매수 전환이 확인되면 박스권 상단 돌파 가능성 상승",
-            "반도체 업황 턴어라운드 기대감으로 중기 모멘텀 유지",
-        ],
-        actions: [
-            "9.8만~10.1만 구간 분할 매수", 
-            "11만 부근 저항 확인 시 일부 차익 실현", 
-            "박스권 이탈 여부(9.5만 미만) 모니터링",
-        ],
-        band: {
-            horizon: "3개월",
-            upper: 114_800,
-            base: 103_500,
-            lower: 94_200,
-        },
+const FALLBACK_ANALYSIS = {
+    name: "AI 시뮬레이션",
+    market: "KRX",
+    last_price: 52_300,
+    change_rate: 0,
+    volatility_score: 45,
+    confidence: 65,
+    risk_label: "중간",
+    summary: "샘플 데이터입니다. 실시간 분석 결과가 준비되면 자동으로 대체됩니다.",
+    quick_notes: [
+        "더미 데이터로 시각적 레이아웃만 확인할 수 있습니다.",
+        "실제 연동 시 수급, 변동성, 밴드 정보를 채워 넣어주세요.",
+        "리스크 신호는 최근 3개월 구간을 기준으로 계산됩니다.",
+    ],
+    actions: [
+        "이탈·돌파 시 알림을 걸어두세요.",
+        "거래량 급증 여부를 체크하세요.",
+        "리스크 점수가 60을 넘으면 비중 축소를 고려하세요.",
+    ],
+    band: {
+        horizon_label: "3개월 ARIMA",
+        upper: 58_100,
+        center: 52_300,
+        lower: 46_900,
     },
-    fallback: {
-        name: "AI 시뮬레이션",
-        market: "KS",
-        currentPrice: 52_300,
-        changeRate: 0.0,
-        volatility: 45,
-        confidence: 65,
-        summary:
-            "샘플 데이터입니다. 선택한 종목의 실제 데이터가 준비되면 실시간 분석 요약을 표시합니다.",
-        quickNotes: [
-            "더미 데이터로 시각적 레이아웃만 확인할 수 있습니다.",
-            "실제 연동 시 수급, 변동성, 밴드 정보를 채워 넣어주세요.",
-            "리스크 신호는 최근 3개월 구간을 기준으로 계산됩니다.",
-        ],
-        actions: [
-            "이탈·돌파 시 알림을 걸어두세요.",
-            "거래량 급증 여부를 체크하세요.",
-            "리스크 점수가 60을 넘으면 비중 축소를 고려하세요.",
-        ],
-        band: {
-            horizon: "3개월",
-            upper: 58_100,
-            base: 52_300,
-            lower: 46_900,
-        },
-    },
+    indicators: {},
 };
 
 const MetricItem = ({ label, value, accent }) => (
@@ -63,12 +37,62 @@ const MetricItem = ({ label, value, accent }) => (
     </div>
 );
 
-const AiAnalysisPanel = ({ symbol }) => {
-    const data = useMemo(() => DUMMY_ANALYSIS[symbol] ?? DUMMY_ANALYSIS.fallback, [symbol]);
+const formatNumber = (value, isKorean) => {
+    if (value == null || Number.isNaN(value)) return "-";
+    return isKorean
+        ? `${Number(value).toLocaleString("ko-KR")}원`
+        : `$${Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
 
-    const priceFormatted = `${data.currentPrice.toLocaleString("ko-KR")}원`;
-    const upperFormatted = data.band.upper.toLocaleString("ko-KR");
-    const lowerFormatted = data.band.lower.toLocaleString("ko-KR");
+const formatPct = (value) => {
+    if (value == null || Number.isNaN(value)) return "-";
+    return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
+};
+
+const useProviderSymbol = (symbol, market) => {
+    return useMemo(() => {
+        const upper = (market || "").toUpperCase();
+        if (["KS", "KOSPI", "KRX"].includes(upper)) return `${symbol}.KS`;
+        if (["KQ", "KOSDAQ"].includes(upper)) return `${symbol}.KQ`;
+        return symbol;
+    }, [symbol, market]);
+};
+
+const AiAnalysisPanel = ({ symbol, market }) => {
+    const providerSymbol = useProviderSymbol(symbol, market);
+    const [analysis, setAnalysis] = useState(FALLBACK_ANALYSIS);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    const isKoreanMarket = useMemo(
+        () => ["KRX", "KS", "KQ", "KOSPI", "KOSDAQ"].includes((market || "").toUpperCase()),
+        [market]
+    );
+
+    useEffect(() => {
+        if (!providerSymbol) return;
+
+        const load = async () => {
+            try {
+                setLoading(true);
+                setError(null);
+                const res = await fetchStockDecisionInsight(providerSymbol);
+                setAnalysis({ name: symbol, market, ...FALLBACK_ANALYSIS, ...res });
+            } catch (err) {
+                console.error("AI 분석 패널 로딩 오류", err);
+                setError("AI 분석 정보를 불러오지 못했습니다.");
+                setAnalysis({ name: symbol, market, ...FALLBACK_ANALYSIS });
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        load();
+    }, [providerSymbol, symbol, market]);
+
+    const priceFormatted = formatNumber(analysis.last_price, isKoreanMarket);
+    const upperFormatted = analysis.band?.upper ? formatNumber(analysis.band.upper, isKoreanMarket) : "-";
+    const lowerFormatted = analysis.band?.lower ? formatNumber(analysis.band.lower, isKoreanMarket) : "-";
 
     return (
         <div className="flex h-full flex-col gap-4 text-slate-100">
@@ -77,13 +101,13 @@ const AiAnalysisPanel = ({ symbol }) => {
                     <div className="flex items-center gap-2">
                         <span className="text-sm text-slate-300">AI 분석 브리핑</span>
                         <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-200">
-                            더미 데이터
+                            {loading ? "데이터 로딩" : error ? "더미" : "실시간"}
                         </span>
                     </div>
                     <div className="flex items-baseline gap-2">
-                        <span className="text-lg font-semibold text-slate-50">{data.name}</span>
+                        <span className="text-lg font-semibold text-slate-50">{analysis.name || symbol}</span>
                         <span className="text-xs text-sky-300">{symbol}</span>
-                        <span className="text-[11px] text-slate-500 uppercase">{data.market}</span>
+                        <span className="text-[11px] text-slate-500 uppercase">{market}</span>
                     </div>
                     <div className="text-2xl font-bold text-slate-100">{priceFormatted}</div>
                 </div>
@@ -102,11 +126,11 @@ const AiAnalysisPanel = ({ symbol }) => {
                 <MetricItem label="현재가" value={priceFormatted} />
                 <MetricItem
                     label="일간 변동률"
-                    value={`${data.changeRate > 0 ? "+" : ""}${data.changeRate.toFixed(1)}%`}
-                    accent={data.changeRate >= 0 ? "text-sm font-semibold text-emerald-300" : "text-sm font-semibold text-sky-300"}
+                    value={formatPct(analysis.change_rate)}
+                    accent={analysis.change_rate >= 0 ? "text-sm font-semibold text-emerald-300" : "text-sm font-semibold text-sky-300"}
                 />
-                <MetricItem label="변동성 점수" value={`${data.volatility} / 100`} />
-                <MetricItem label="신뢰 점수" value={`${data.confidence} / 100`} accent="text-sm font-semibold text-amber-200" />
+                <MetricItem label="변동성 점수" value={`${analysis.volatility_score} / 100`} />
+                <MetricItem label="신뢰 점수" value={`${analysis.confidence} / 100`} accent="text-sm font-semibold text-amber-200" />
             </div>
 
             <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-3">
@@ -116,12 +140,13 @@ const AiAnalysisPanel = ({ symbol }) => {
                             리스크 / 밴드 브리핑
                         </div>
                         <div className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-3 text-sm text-slate-200">
-                            {data.summary}
+                            {analysis.summary}
+                            {error && <div className="mt-1 text-[11px] text-amber-300">{error}</div>}
                         </div>
                         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                             <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-[11px] text-slate-300">
-                                <div className="text-slate-400">상단 밴드 ({data.band.horizon})</div>
-                                <div className="text-sm font-semibold text-emerald-200">{upperFormatted}원</div>
+                                <div className="text-slate-400">상단 밴드 ({analysis.band?.horizon_label || "3개월"})</div>
+                                <div className="text-sm font-semibold text-emerald-200">{upperFormatted}</div>
                             </div>
                             <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-[11px] text-slate-300">
                                 <div className="text-slate-400">중심선</div>
@@ -129,7 +154,7 @@ const AiAnalysisPanel = ({ symbol }) => {
                             </div>
                             <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-[11px] text-slate-300">
                                 <div className="text-slate-400">하단 밴드</div>
-                                <div className="text-sm font-semibold text-sky-200">{lowerFormatted}원</div>
+                                <div className="text-sm font-semibold text-sky-200">{lowerFormatted}</div>
                             </div>
                         </div>
                     </div>
@@ -137,7 +162,7 @@ const AiAnalysisPanel = ({ symbol }) => {
                     <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-lg shadow-black/30">
                         <div className="mb-2 text-[12px] font-semibold text-slate-200">핵심 인사이트</div>
                         <ul className="space-y-2 text-sm text-slate-200">
-                            {data.quickNotes.map((note, idx) => (
+                            {(analysis.quick_notes || []).map((note, idx) => (
                                 <li
                                     key={idx}
                                     className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-[13px] text-slate-100"
@@ -156,7 +181,7 @@ const AiAnalysisPanel = ({ symbol }) => {
                             <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-200">리스크 관리</span>
                         </div>
                         <ol className="space-y-2 text-sm text-slate-100">
-                            {data.actions.map((action, idx) => (
+                            {(analysis.actions || []).map((action, idx) => (
                                 <li
                                     key={idx}
                                     className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-[13px]"
@@ -176,7 +201,7 @@ const AiAnalysisPanel = ({ symbol }) => {
                             </li>
                             <li className="flex items-center gap-2">
                                 <span className="h-2 w-2 rounded-full bg-amber-300" />
-                                하단 밴드( {lowerFormatted}원 ) 이탈 시 손절 검토
+                                하단 밴드( {lowerFormatted} ) 이탈 시 손절 검토
                             </li>
                             <li className="flex items-center gap-2">
                                 <span className="h-2 w-2 rounded-full bg-sky-300" />
