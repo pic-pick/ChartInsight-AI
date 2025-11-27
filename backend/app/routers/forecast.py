@@ -6,7 +6,7 @@ from ..services.forecast_service import get_forecast_band, evaluate_forecast_acc
 router = APIRouter(prefix="/forecast", tags=["forecast"])
 
 
-@router.get("/forecast/{symbol}")
+@router.get("/{symbol}")
 def forecast_band(
     symbol: str,
     horizon: int = Query(
@@ -23,7 +23,7 @@ def forecast_band(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/forecast/{symbol}/accuracy")
+@router.get("/{symbol}/accuracy")
 def forecast_accuracy(
     symbol: str,
     holdout_days: int = Query(
