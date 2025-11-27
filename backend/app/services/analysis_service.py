@@ -42,6 +42,16 @@ class IndicatorSnapshot:
     mdd_pct: float
     boll_upper: float
     boll_lower: float
+    macd_line: float
+    macd_signal: float
+    macd_hist: float
+    rsi14: float
+    volume_last: float
+    volume_avg20: float
+    volume_ratio_pct: float
+    psy10_pct: float
+    vkospi_level: Optional[float] = None
+    vkospi_change_pct: Optional[float] = None
 
 
 def _compute_true_range(df: pd.DataFrame) -> pd.Series:
@@ -82,6 +92,35 @@ def _calculate_indicators(df: pd.DataFrame) -> IndicatorSnapshot:
     boll_upper = float(ma20 + 2 * std20)
     boll_lower = float(ma20 - 2 * std20)
 
+    # MACD (12,26,9)
+    ema12 = close.ewm(span=12, adjust=False).mean()
+    ema26 = close.ewm(span=26, adjust=False).mean()
+    macd_line = float(ema12.iloc[-1] - ema26.iloc[-1])
+    macd_signal_series = (ema12 - ema26).ewm(span=9, adjust=False).mean()
+    macd_signal = float(macd_signal_series.iloc[-1])
+    macd_hist = float(macd_line - macd_signal)
+
+    # RSI(14)
+    delta = close.diff()
+    gain = delta.where(delta > 0, 0.0)
+    loss = -delta.where(delta < 0, 0.0)
+    avg_gain = gain.rolling(window=14).mean()
+    avg_loss = loss.rolling(window=14).mean()
+    rs = avg_gain / avg_loss
+    rsi14 = float(100 - (100 / (1 + rs.iloc[-1]))) if len(rs.dropna()) else 50.0
+
+    volume_series = df["Volume"].fillna(0)
+    volume_last = float(volume_series.iloc[-1]) if not volume_series.empty else 0.0
+    volume_avg20 = float(volume_series.rolling(window=20).mean().iloc[-1]) if len(volume_series) >= 20 else 0.0
+    volume_ratio_pct = (
+        float((volume_last / volume_avg20 - 1) * 100) if volume_avg20 else 0.0
+    )
+
+    # 투자심리도: 최근 10일 상승일 비율
+    up_ratio = close.diff().gt(0).tail(10).mean() * 100 if len(close) >= 10 else 50.0
+
+    vkospi_level, vkospi_change_pct = _fetch_vkospi()
+
     return IndicatorSnapshot(
         close=last_close,
         change_rate=change_rate,
@@ -93,7 +132,35 @@ def _calculate_indicators(df: pd.DataFrame) -> IndicatorSnapshot:
         mdd_pct=mdd_pct,
         boll_upper=boll_upper,
         boll_lower=boll_lower,
+        macd_line=macd_line,
+        macd_signal=macd_signal,
+        macd_hist=macd_hist,
+        rsi14=rsi14,
+        volume_last=volume_last,
+        volume_avg20=volume_avg20,
+        volume_ratio_pct=volume_ratio_pct,
+        psy10_pct=float(up_ratio),
+        vkospi_level=vkospi_level,
+        vkospi_change_pct=vkospi_change_pct,
     )
+
+
+def _fetch_vkospi() -> tuple[Optional[float], Optional[float]]:
+    """Pull the latest VKOSPI level and daily change as a market sentiment proxy."""
+
+    try:
+        vkospi = yf.Ticker("^VKOSPI")
+        hist = vkospi.history(period="5d")
+        if hist.empty:
+            return None, None
+
+        last_close = hist["Close"].iloc[-1]
+        prev_close = hist["Close"].iloc[-2] if len(hist) > 1 else last_close
+        change_pct = (last_close / prev_close - 1) * 100 if prev_close else 0.0
+        return float(last_close), float(change_pct)
+    except Exception:
+        logger.exception("Failed to fetch VKOSPI")
+        return None, None
 
 
 def _score_volatility(hv20_pct: float) -> int:
@@ -144,6 +211,9 @@ def _build_narrative(ind: IndicatorSnapshot, band: Optional[BandSummary]) -> Dic
     ma_gap_pct = (ind.sma20 / ind.sma60 - 1) * 100 if ind.sma60 else 0
     trend_bias = "완만한 상승" if ma_gap_pct > 1 else "중립" if -1 <= ma_gap_pct <= 1 else "하락"
     risk_label = "높음" if ind.hv20_pct > 45 or ind.mdd_pct < -25 else "중간" if ind.hv20_pct > 25 else "낮음"
+    macd_state = "상향" if ind.macd_hist > 0 else "하향"
+    rsi_state = "과매수" if ind.rsi14 >= 70 else "중립" if ind.rsi14 > 35 else "과매도"
+    vol_state = "거래량 급증" if ind.volume_ratio_pct > 30 else "평균 수준" if ind.volume_ratio_pct > -20 else "거래량 둔화"
 
     band_phrase = (
         f"밴드 폭 {((band.upper - band.lower) / band.center * 100):.1f}%" if band else "밴드 정보 없음"
@@ -151,13 +221,15 @@ def _build_narrative(ind: IndicatorSnapshot, band: Optional[BandSummary]) -> Dic
     summary = (
         f"20일선 대비 60일선 {ma_gap_pct:+.1f}%로 추세는 {trend_bias}, "
         f"최근 모멘텀 {ind.momentum20_pct:+.1f}%와 연율화 변동성 {ind.hv20_pct:.1f}% (리스크 {risk_label}). "
+        f"MACD {macd_state}, RSI {ind.rsi14:.0f}({rsi_state}), 거래량 {vol_state}. "
         + (f"{band.horizon_label} {band.lower:,.0f}~{band.upper:,.0f} ({band_phrase})." if band else "예측 밴드 대기 중.")
     )
 
     quick_notes = [
         f"모멘텀 {ind.momentum20_pct:+.1f}% · HV20 {ind.hv20_pct:.1f}% → {risk_label} 변동성 구간",
-        f"최대 낙폭 {ind.mdd_pct:.1f}% · ATR14 {ind.atr14:,.0f} (최근 저점 대비 회복력 확인 필요)",
-        "볼린저 상·하단 근처에서는 분할 대응으로 리스크 조절",
+        f"MACD {macd_state} · RSI {ind.rsi14:.0f} ({rsi_state}) · 투자심리도 {ind.psy10_pct:.0f}%",
+        f"거래량 {ind.volume_ratio_pct:+.0f}% vs 20일 평균 · ATR14 {ind.atr14:,.0f} · 최대 낙폭 {ind.mdd_pct:.1f}%",
+        "볼린저 상·하단/예측 밴드 인근에서는 분할 대응과 포지션 조절을 병행하세요.",
     ]
 
     actions = [
@@ -196,6 +268,22 @@ def _build_alerts(ind: IndicatorSnapshot, band: Optional[BandSummary]) -> List[s
     if ind.hv20_pct > 45:
         alerts.append("극단적 변동성 구간입니다. 손익비 1:2 이상 확보 후 진입을 권고합니다.")
 
+    if ind.macd_hist > 0 and ind.macd_line > ind.macd_signal:
+        alerts.append("MACD 상향 전환으로 추세 우위. 단기 과열 여부를 RSI와 함께 확인하세요.")
+    elif ind.macd_hist < 0 and ind.macd_line < ind.macd_signal:
+        alerts.append("MACD 하향 전환으로 조정 가능성. 반등 신호(시그널 상향)를 기다리세요.")
+
+    if ind.rsi14 >= 70:
+        alerts.append("RSI 70 이상으로 과매수 구간입니다. 분할 매도/헤지 전략을 고려하세요.")
+    elif ind.rsi14 <= 30:
+        alerts.append("RSI 30 이하로 과매도 신호. 반등 시 분할 매수 타이밍을 탐색하세요.")
+
+    if ind.volume_ratio_pct > 40:
+        alerts.append("거래량이 20일 평균 대비 크게 증가했습니다. 추세 가속 또는 뉴스 트리거를 확인하세요.")
+
+    if ind.vkospi_level and ind.vkospi_change_pct and ind.vkospi_change_pct > 5:
+        alerts.append(f"VKOSPI {ind.vkospi_level:.1f} (▲{ind.vkospi_change_pct:.1f}%) 변동성 경보 — 포지션 축소·헤지를 검토하세요.")
+
     return alerts[:5]
 
 
@@ -218,15 +306,22 @@ def build_decision_insight(symbol: str, period: str = "1y") -> Dict:
         band_range_pct = (
             (band.upper - band.lower) / band.center if band and band.center else 0.0
         )
-        confidence = _score_confidence(
-            trend_score, momentum_score, volatility_score, band_range_pct
-        )
+        confidence = _score_confidence(trend_score, momentum_score, volatility_score, band_range_pct)
 
         volatility_label = "낮음" if volatility_score < 35 else "중간" if volatility_score < 70 else "높음"
         confidence_label = "높음" if confidence >= 70 else "보통" if confidence >= 45 else "낮음"
-        confidence_reason = (
-            f"추세 점수 {trend_score}, 모멘텀 점수 {momentum_score}, 변동성 점수 {volatility_score}. "
-            f"예측 밴드 폭 {band_range_pct*100:.1f}%을 반영해 신뢰도를 계산했습니다."
+        confidence_reason = " | ".join(
+            [
+                f"추세 {trend_score} · 모멘텀 {momentum_score}",
+                f"변동성 {volatility_score} · 밴드 폭 {band_range_pct*100:.1f}%",
+                f"MACD {'상향' if ind.macd_hist > 0 else '하향'} · RSI {ind.rsi14:.0f}",
+            ]
+        )
+
+        fear_greed = "탐욕" if ind.psy10_pct >= 70 and ind.hv20_pct < 40 else "공포" if ind.psy10_pct <= 35 else "중립"
+        sentiment_note = (
+            f"투자심리도 {ind.psy10_pct:.0f}% → {fear_greed} 구간. "
+            + (f"VKOSPI {ind.vkospi_level:.1f} (변동성 {ind.vkospi_change_pct:+.1f}%)" if ind.vkospi_level else "VKOSPI 데이터 없음")
         )
 
         narrative = _build_narrative(ind, band)
@@ -256,6 +351,35 @@ def build_decision_insight(symbol: str, period: str = "1y") -> Dict:
                 "mdd_pct": ind.mdd_pct,
                 "boll_upper": ind.boll_upper,
                 "boll_lower": ind.boll_lower,
+                "macd_line": ind.macd_line,
+                "macd_signal": ind.macd_signal,
+                "macd_hist": ind.macd_hist,
+                "rsi14": ind.rsi14,
+                "volume_last": ind.volume_last,
+                "volume_avg20": ind.volume_avg20,
+                "volume_ratio_pct": ind.volume_ratio_pct,
+                "psy10_pct": ind.psy10_pct,
+                "vkospi_level": ind.vkospi_level,
+                "vkospi_change_pct": ind.vkospi_change_pct,
+            },
+            "oscillators": {
+                "macd": {
+                    "line": ind.macd_line,
+                    "signal": ind.macd_signal,
+                    "hist": ind.macd_hist,
+                    "state": "상향" if ind.macd_hist > 0 else "하향",
+                },
+                "rsi14": {
+                    "value": ind.rsi14,
+                    "zone": "과매수" if ind.rsi14 >= 70 else "중립" if ind.rsi14 > 35 else "과매도",
+                },
+                "volume_ratio_pct": ind.volume_ratio_pct,
+            },
+            "sentiment": {
+                "investor_psychology_pct": ind.psy10_pct,
+                "fear_greed": fear_greed,
+                "note": sentiment_note,
+                "vkospi": {"level": ind.vkospi_level, "change_pct": ind.vkospi_change_pct},
             },
         }
     except Exception:

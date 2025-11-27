@@ -92,6 +92,8 @@ class DecisionInsight(BaseModel):
     actions: list[str]
     alerts: list[str] | None = None
     indicators: dict
+    oscillators: dict | None = None
+    sentiment: dict | None = None
 
 
 @router.get("/search", response_model=List[StockItem])

@@ -35,6 +35,17 @@ const FALLBACK_ANALYSIS = {
         lower: 46_900,
     },
     indicators: {},
+    oscillators: {
+        macd: { line: 0, signal: 0, hist: 0, state: "중립" },
+        rsi14: { value: 50, zone: "중립" },
+        volume_ratio_pct: 0,
+    },
+    sentiment: {
+        investor_psychology_pct: 50,
+        fear_greed: "중립",
+        note: "투자심리도 50% → 중립 구간",
+        vkospi: { level: null, change_pct: null },
+    },
 };
 
 const MetricItem = ({ label, value, accent }) => (
@@ -54,6 +65,14 @@ const formatNumber = (value, isKorean) => {
 const formatPct = (value) => {
     if (value == null || Number.isNaN(value)) return "-";
     return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
+};
+
+const formatCompactNumber = (value) => {
+    if (value == null || Number.isNaN(value)) return "-";
+    if (Math.abs(value) >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+    if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (Math.abs(value) >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+    return value.toFixed(0);
 };
 
 const useProviderSymbol = (symbol, market) => {
@@ -100,6 +119,11 @@ const AiAnalysisPanel = ({ symbol, market }) => {
     const priceFormatted = formatNumber(analysis.last_price, isKoreanMarket);
     const upperFormatted = analysis.band?.upper ? formatNumber(analysis.band.upper, isKoreanMarket) : "-";
     const lowerFormatted = analysis.band?.lower ? formatNumber(analysis.band.lower, isKoreanMarket) : "-";
+    const volumeRatio = analysis.oscillators?.volume_ratio_pct ?? analysis.indicators?.volume_ratio_pct;
+    const macdState = analysis.oscillators?.macd?.state || (analysis.indicators?.macd_hist > 0 ? "상향" : "하향");
+    const rsiValue = analysis.oscillators?.rsi14?.value ?? analysis.indicators?.rsi14;
+    const rsiZone = analysis.oscillators?.rsi14?.zone;
+    const psy10 = analysis.sentiment?.investor_psychology_pct ?? analysis.indicators?.psy10_pct;
 
     return (
         <div className="flex h-full flex-col gap-4 text-slate-100">
@@ -147,6 +171,28 @@ const AiAnalysisPanel = ({ symbol, market }) => {
                 />
             </div>
 
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <MetricItem
+                    label="MACD"
+                    value={`${macdState || "-"} (${(analysis.indicators?.macd_hist ?? 0).toFixed(3)})`}
+                />
+                <MetricItem
+                    label="RSI(14)"
+                    value={`${rsiValue ? rsiValue.toFixed(0) : "-"} ${rsiZone ? `(${rsiZone})` : ""}`.trim()}
+                    accent={"text-sm font-semibold " + (rsiValue >= 70 ? "text-amber-300" : rsiValue <= 30 ? "text-sky-300" : "text-emerald-200")}
+                />
+                <MetricItem
+                    label="거래량 vs 20일"
+                    value={`${volumeRatio ? volumeRatio.toFixed(0) : 0}%`}
+                    accent={"text-sm font-semibold " + (volumeRatio > 30 ? "text-emerald-200" : volumeRatio < -20 ? "text-slate-300" : "text-slate-100")}
+                />
+                <MetricItem
+                    label="투자심리도"
+                    value={`${psy10 ? psy10.toFixed(0) : "-"}% (${analysis.sentiment?.fear_greed || "중립"})`}
+                    accent="text-sm font-semibold text-slate-100"
+                />
+            </div>
+
             <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-3">
                 <div className="col-span-2 space-y-3">
                     <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-lg shadow-black/30">
@@ -161,6 +207,9 @@ const AiAnalysisPanel = ({ symbol, market }) => {
                             {analysis.summary}
                             {analysis.confidence_reason && (
                                 <div className="mt-2 text-[11px] text-slate-400">{analysis.confidence_reason}</div>
+                            )}
+                            {analysis.sentiment?.note && (
+                                <div className="mt-2 text-[11px] text-emerald-200/80">{analysis.sentiment.note}</div>
                             )}
                             {error && <div className="mt-1 text-[11px] text-amber-300">{error}</div>}
                         </div>
