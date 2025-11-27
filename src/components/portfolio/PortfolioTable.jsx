@@ -1,10 +1,12 @@
 import React from "react";
 
-const PortfolioTable = ({ items = [] }) => {
+const PortfolioTable = ({ items = [], detailed = false, title = "나의 보유 종목 분석" }) => {
+    const totalColumns = detailed ? 10 : 7;
+
     return (
         <section className="mt-8">
             <h2 className="mb-3 text-base font-semibold text-slate-100">
-                나의 보유 종목 분석
+                {title}
             </h2>
 
             <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900 shadow">
@@ -17,6 +19,13 @@ const PortfolioTable = ({ items = [] }) => {
                         <th className="px-4 py-3 text-right w-20">수량</th>
                         <th className="px-4 py-3 text-right w-32">총 투자금</th>
                         <th className="px-4 py-3 text-right w-24">등락률</th>
+                        {detailed && (
+                            <>
+                                <th className="px-4 py-3 text-right w-32">평가금액</th>
+                                <th className="px-4 py-3 text-right w-32">평가손익</th>
+                                <th className="px-4 py-3 text-right w-24">비중</th>
+                            </>
+                        )}
                         <th className="px-4 py-3 text-center w-40">변동성 / 위험도</th>
                     </tr>
                     </thead>
@@ -25,7 +34,7 @@ const PortfolioTable = ({ items = [] }) => {
                     {items.length === 0 ? (
                         <tr>
                             <td
-                                colSpan={7}
+                                colSpan={totalColumns}
                                 className="px-4 py-6 text-center text-slate-500"
                             >
                                 보유 중인 종목이 없습니다.
@@ -34,6 +43,12 @@ const PortfolioTable = ({ items = [] }) => {
                     ) : (
                         items.map((item, idx) => {
                             const isUp = item.changeRate >= 0;
+
+                            const invested = item.totalInvested ?? item.invested ?? item.avgPrice * item.shares;
+                            const marketValue = item.marketValue ?? item.currentPrice * item.shares;
+                            const pnl = item.pnl ?? marketValue - invested;
+                            const pnlRate = item.returnRate ?? (invested ? (pnl / invested) * 100 : 0);
+                            const weight = item.weight;
 
                             // 위험도 색 (낮음/보통/높음)
                             const riskColor =
@@ -85,7 +100,7 @@ const PortfolioTable = ({ items = [] }) => {
 
                                     {/* 총 투자금 */}
                                     <td className="px-4 py-3 text-right text-slate-100">
-                                        {item.totalInvested.toLocaleString()}원
+                                        {invested.toLocaleString()}원
                                     </td>
 
                                     {/* 등락률 */}
@@ -97,6 +112,40 @@ const PortfolioTable = ({ items = [] }) => {
                                         {isUp ? "+" : ""}
                                         {item.changeRate.toFixed(2)}%
                                     </td>
+
+                                    {detailed && (
+                                        <>
+                                            {/* 평가금액 */}
+                                            <td className="px-4 py-3 text-right text-slate-100">
+                                                {marketValue.toLocaleString(undefined, {
+                                                    maximumFractionDigits: 0,
+                                                })}
+                                                원
+                                            </td>
+
+                                            {/* 평가손익 */}
+                                            <td
+                                                className={`px-4 py-3 text-right font-semibold ${
+                                                    pnl >= 0 ? "text-red-300" : "text-sky-300"
+                                                }`}
+                                            >
+                                                {pnl >= 0 ? "+" : ""}
+                                                {pnl.toLocaleString(undefined, {
+                                                    maximumFractionDigits: 0,
+                                                })}
+                                                원
+                                                <div className="text-[11px] text-slate-400">
+                                                    {pnlRate >= 0 ? "+" : ""}
+                                                    {pnlRate.toFixed(2)}%
+                                                </div>
+                                            </td>
+
+                                            {/* 비중 */}
+                                            <td className="px-4 py-3 text-right text-slate-100">
+                                                {weight != null ? `${weight.toFixed(1)}%` : "-"}
+                                            </td>
+                                        </>
+                                    )}
 
                                     {/* 변동성 / 위험도 */}
                                     <td className="px-4 py-3">

@@ -2,12 +2,15 @@ import React from "react";
 import AppLayout from "./components/layout/AppLayout";
 import AppRouter from "./router/AppRouter";
 import apiClient from "./api/client";
+import { UserPortfolioProvider } from "./context/UserPortfolioContext";
 
 const App = () => {
   return (
-      <AppLayout>
-        <AppRouter />
-      </AppLayout>
+      <UserPortfolioProvider>
+        <AppLayout>
+          <AppRouter />
+        </AppLayout>
+      </UserPortfolioProvider>
   );
 };
 
