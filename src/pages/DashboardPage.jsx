@@ -66,7 +66,6 @@ const DashboardPage = () => {
     const [candles, setCandles] = useState([]);
     const [forecastBand, setForecastBand] = useState([]); // ✅ 예측 밴드
     const [forecastMonths, setForecastMonths] = useState(3); // 1~6개월 사이 선택
-    const [viewMode, setViewMode] = useState("chart"); // "chart" | "ai"
     const [accuracy, setAccuracy] = useState(null);
 
     // 기간: 일 / 주 / 월 / 년
@@ -230,35 +229,8 @@ const DashboardPage = () => {
                 </div>
             </div>
 
-            {/* 🔹 상단: 뷰 선택 / 종목 검색 */}
+            {/* 🔹 상단: 검색 */}
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                {/* 차트 <-> AI 토글 */}
-                <div className="inline-flex items-center rounded-full bg-slate-900/80 p-1 border border-slate-800">
-                    <button
-                        type="button"
-                        onClick={() => setViewMode("chart")}
-                        className={`px-3 py-1.5 text-xs rounded-full transition ${
-                            viewMode === "chart"
-                                ? "bg-sky-500 text-white"
-                                : "text-slate-300 hover:text-slate-100"
-                        }`}
-                    >
-                        차트 보기
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setViewMode("ai")}
-                        className={`px-3 py-1.5 text-xs rounded-full transition ${
-                            viewMode === "ai"
-                                ? "bg-sky-500 text-white"
-                                : "text-slate-300 hover:text-slate-100"
-                        }`}
-                    >
-                        AI 분석 대시보드
-                    </button>
-                </div>
-
-                {/* ✅ 분석하기 버튼 제거, SearchBar만 사용 */}
                 <div className="flex items-center gap-2">
                     <SearchBar
                         value={symbol}
@@ -274,7 +246,7 @@ const DashboardPage = () => {
                 </div>
             </div>
 
-            {/* 🔹 차트 / AI 패널 */}
+            {/* 🔹 차트 패널 */}
             <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/80 px-5 py-4 shadow-md">
                 {/* 카드 상단 바: 선택된 종목 + 기간 / 차트 타입 버튼 */}
                 <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs">
@@ -283,8 +255,7 @@ const DashboardPage = () => {
                         <span className="text-sky-400 font-medium">{symbol}</span>
                     </div>
 
-                    {viewMode === "chart" && (
-                        <div className="flex flex-wrap items-center gap-3 justify-between sm:justify-end">
+                    <div className="flex flex-wrap items-center gap-3 justify-between sm:justify-end">
                             {/* 기간 버튼: 일 / 주 / 월 / 년 */}
                             <div className="flex items-center gap-1">
                                 {TIMEFRAME_OPTIONS.map((p) => (
@@ -348,9 +319,9 @@ const DashboardPage = () => {
                                         </>
                                     ) : null}
                                 </div>
-                            </div>
+                                </div>
 
-                            {/* 캔들 / 라인 타입 */}
+                                {/* 캔들 / 라인 타입 */}
                             <div className="flex items-center gap-1">
                                 <button
                                     type="button"
@@ -376,32 +347,37 @@ const DashboardPage = () => {
                                 </button>
                             </div>
                         </div>
-                    )}
                 </div>
 
-                <div className={viewMode === "ai" ? "min-h-[520px]" : "h-[360px]"}>
-                    {viewMode === "chart" ? (
-                        <div className="h-full rounded-xl bg-slate-950/80 overflow-hidden">
-                            {isLoadingCandles ? (
-                                <div className="flex h-full items-center justify-center text-xs text-slate-400">
-                                    차트 데이터를 불러오는 중입니다...
-                                </div>
-                            ) : candlesError ? (
-                                <div className="flex h-full items-center justify-center text-xs text-red-400">
-                                    {candlesError}
-                                </div>
-                            ) : candles.length === 0 ? (
-                                <div className="flex h-full items-center justify-center text-xs text-slate-500">
-                                    아직 차트 데이터가 없습니다. 상단에서 종목을 검색해 주세요.
-                                </div>
-                            ) : (
-                                <PriceChart candles={candles} chartType={chartType} isKorean={isKoreanMarket} forecastBand={forecastBand}/>
-                            )}
-                        </div>
-                    ) : (
-                        <AiAnalysisPanel symbol={symbol} market={market} />
-                    )}
+                <div className="h-[360px]">
+                    <div className="h-full rounded-xl bg-slate-950/80 overflow-hidden">
+                        {isLoadingCandles ? (
+                            <div className="flex h-full items-center justify-center text-xs text-slate-400">
+                                차트 데이터를 불러오는 중입니다...
+                            </div>
+                        ) : candlesError ? (
+                            <div className="flex h-full items-center justify-center text-xs text-red-400">
+                                {candlesError}
+                            </div>
+                        ) : candles.length === 0 ? (
+                            <div className="flex h-full items-center justify-center text-xs text-slate-500">
+                                아직 차트 데이터가 없습니다. 상단에서 종목을 검색해 주세요.
+                            </div>
+                        ) : (
+                            <PriceChart
+                                candles={candles}
+                                chartType={chartType}
+                                isKorean={isKoreanMarket}
+                                forecastBand={forecastBand}
+                            />
+                        )}
+                    </div>
                 </div>
+            </section>
+
+            {/* 🔹 AI 분석 패널 (중복 버튼 제거) */}
+            <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/80 px-5 py-4 shadow-md">
+                <AiAnalysisPanel symbol={symbol} market={market} />
             </section>
 
             {/* 🔹 포트폴리오 테이블 */}

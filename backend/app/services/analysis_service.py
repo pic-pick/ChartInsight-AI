@@ -180,16 +180,31 @@ def _score_volatility(hv20_pct: float) -> int:
 
 
 def _score_confidence(
-    trend_score: int, momentum_score: int, volatility_score: int, band_range_pct: float
+    trend_score: int,
+    momentum_score: int,
+    volatility_score: int,
+    band_range_pct: float,
+    liquidity_bonus: float = 0.0,
 ) -> int:
     """Blend trend/momentum strength with band 폭과 변동성 기반의 신뢰 점수."""
 
-    base = 60
-    bonus = (trend_score - 50) * 0.35 + (momentum_score - 50) * 0.25
-    volatility_penalty = max(0, volatility_score - 55) * 0.45
-    band_penalty = min(18, max(0, band_range_pct * 120)) if band_range_pct else 0
+    base = 62
+    bonus = (trend_score - 50) * 0.32 + (momentum_score - 50) * 0.25 + liquidity_bonus
+    volatility_penalty = max(0, volatility_score - 60) * 0.35
+    band_penalty = min(15, max(0, band_range_pct * 100)) if band_range_pct else 0
     score = base + bonus - volatility_penalty - band_penalty
     return int(max(0, min(100, round(score))))
+
+
+def _score_liquidity(avg_volume: float) -> float:
+    """Estimate a small bonus for 안정적인 대형주/거래대금 기반 유동성."""
+
+    if avg_volume is None or np.isnan(avg_volume) or avg_volume <= 0:
+        return 0.0
+
+    # 로그 스케일 보정: 1M 이하 0, 10M 이상 약 +6~8점 부여
+    scaled = max(0.0, np.log10(avg_volume) - 6) * 2.2
+    return min(8.0, scaled)
 
 
 def _band_from_forecast(symbol: str, horizon_days: int = 63) -> Optional[BandSummary]:
@@ -301,12 +316,15 @@ def build_decision_insight(symbol: str, period: str = "1y") -> Dict:
         trend_score = 70 if ind.sma20 > ind.sma60 else 45
         momentum_score = min(100, max(0, 50 + ind.momentum20_pct))
         volatility_score = _score_volatility(ind.hv20_pct)
+        liquidity_bonus = _score_liquidity(ind.volume_avg20)
 
         band = _band_from_forecast(symbol)
         band_range_pct = (
             (band.upper - band.lower) / band.center if band and band.center else 0.0
         )
-        confidence = _score_confidence(trend_score, momentum_score, volatility_score, band_range_pct)
+        confidence = _score_confidence(
+            trend_score, momentum_score, volatility_score, band_range_pct, liquidity_bonus
+        )
 
         volatility_label = "낮음" if volatility_score < 35 else "중간" if volatility_score < 70 else "높음"
         confidence_label = "높음" if confidence >= 70 else "보통" if confidence >= 45 else "낮음"
@@ -314,6 +332,7 @@ def build_decision_insight(symbol: str, period: str = "1y") -> Dict:
             [
                 f"추세 {trend_score} · 모멘텀 {momentum_score}",
                 f"변동성 {volatility_score} · 밴드 폭 {band_range_pct*100:.1f}%",
+                f"유동성 보너스 +{liquidity_bonus:.1f} (20일 평균 거래량)",
                 f"MACD {'상향' if ind.macd_hist > 0 else '하향'} · RSI {ind.rsi14:.0f}",
             ]
         )
