@@ -230,8 +230,8 @@ const DashboardPage = () => {
                 </div>
             </div>
 
-            {/* 🔹 상단: 뷰 선택 / 종목 검색 */}
-            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {/* 🔹 상단: 뷰 선택 / 종목 검색 (오른쪽 세로 정렬) */}
+            <div className="mb-3 flex flex-col items-end gap-2">
                 {/* 차트 <-> AI 토글 */}
                 <div className="inline-flex items-center rounded-full bg-slate-900/80 p-1 border border-slate-800">
                     <button
@@ -258,18 +258,20 @@ const DashboardPage = () => {
                     </button>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <SearchBar
-                        value={symbol}
-                        onSelect={(sym, item) => {
-                            console.log("SearchBar에서 선택된 종목:", sym, item);
-                            setSymbol(sym);
-                            setMarket(item.market);
-                            setSymbolName(item.name || sym);
-                            // 선택과 동시에 useEffect가 자동으로 차트 리로드
-                        }}
-                        placeholder="종목명 또는 코드 검색"
-                    />
+                <div className="flex w-full justify-end">
+                    <div className="w-full sm:w-80">
+                        <SearchBar
+                            value={symbol}
+                            onSelect={(sym, item) => {
+                                console.log("SearchBar에서 선택된 종목:", sym, item);
+                                setSymbol(sym);
+                                setMarket(item.market);
+                                setSymbolName(item.name || sym);
+                                // 선택과 동시에 useEffect가 자동으로 차트 리로드
+                            }}
+                            placeholder="종목명 또는 코드 검색"
+                        />
+                    </div>
                 </div>
             </div>
 
