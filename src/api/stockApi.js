@@ -45,8 +45,17 @@ export const searchStocks = async (q) => {
 };
 
 
-export async function fetchForecastBand(symbol) {
+export async function fetchForecastBand(symbol, horizonDays = 63) {
     // symbol 은 이미 005930.KS / AAPL 같은 yfinance 심볼이라고 가정
-    const res = await apiClient.get(`/forecast/${symbol}`);
+    const res = await apiClient.get(`/forecast/${symbol}`, {
+        params: { horizon: horizonDays },
+    });
     return res.data; // [{time, lower, upper, mean}, ...]
+}
+
+export async function fetchForecastAccuracy(symbol, holdoutDays = 63) {
+    const res = await apiClient.get(`/forecast/${symbol}/accuracy`, {
+        params: { holdout_days: holdoutDays },
+    });
+    return res.data; // {mae, rmse, mape, ...}
 }

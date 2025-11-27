@@ -4,63 +4,23 @@ import PriceChart from "../components/charts/PriceChart";
 import PortfolioTable from "../components/portfolio/PortfolioTable";
 import AiAnalysisPanel from "../components/analysis/AiAnalysisPanel";
 import SearchBar from "../components/SearchBar";
-import { fetchStockCandles } from "../api/stockApi";
-
-// 테스트용 포트폴리오 데이터 (그대로 사용)
-const MOCK_PORTFOLIO = [
-    {
-        symbol: "TSLL",
-        displayName: "TSLL",
-        currentPrice: 24364,
-        avgPrice: 24364,
-        shares: 2,
-        totalInvested: 56061,
-        changeRate: 1.22,
-        volatilityScore: 72,
-        riskLevel: "보통",
-    },
-    {
-        symbol: "005380",
-        displayName: "현대차",
-        currentPrice: 273000,
-        avgPrice: 273000,
-        shares: 4,
-        totalInvested: 461500,
-        changeRate: -1.97,
-        volatilityScore: 65,
-        riskLevel: "보통",
-    },
-    {
-        symbol: "005930",
-        displayName: "삼성전자",
-        currentPrice: 97500,
-        avgPrice: 97500,
-        shares: 2,
-        totalInvested: 138044,
-        changeRate: -5.15,
-        volatilityScore: 83,
-        riskLevel: "높음",
-    },
-    {
-        symbol: "000000",
-        displayName: "지니어스 그룹",
-        currentPrice: 1268,
-        avgPrice: 1268,
-        shares: 4,
-        totalInvested: 55100,
-        changeRate: 2.84,
-        volatilityScore: 35,
-        riskLevel: "낮음",
-    },
-];
+import {
+    fetchForecastBand,
+    fetchForecastAccuracy,
+    fetchStockCandles,
+} from "../api/stockApi";
+import { useUserPortfolio } from "../context/UserPortfolioContext";
 
 const DashboardPage = () => {
+    const { holdings } = useUserPortfolio();
     const [symbol, setSymbol] = useState("005930");
     const [symbolName, setSymbolName] = useState("삼성전자");
     const [market, setMarket] = useState("KRX");
 
     const [candles, setCandles] = useState([]);
     const [forecastBand, setForecastBand] = useState([]); // ✅ 예측 밴드
+    const [forecastMonths, setForecastMonths] = useState(3); // 1~6개월 사이 선택
+    const [accuracy, setAccuracy] = useState(null);
     const [viewMode, setViewMode] = useState("chart"); // "chart" | "ai"
 
     // 기간: 일 / 주 / 월 / 년
@@ -69,6 +29,10 @@ const DashboardPage = () => {
 
     const [isLoadingCandles, setIsLoadingCandles] = useState(false);
     const [candlesError, setCandlesError] = useState(null);
+    const [isLoadingForecast, setIsLoadingForecast] = useState(false);
+    const [forecastError, setForecastError] = useState(null);
+    const [isLoadingAccuracy, setIsLoadingAccuracy] = useState(false);
+    const [accuracyError, setAccuracyError] = useState(null);
 
     // 마지막 캔들 기준 현재가
     const lastPrice = useMemo(
@@ -113,7 +77,9 @@ const DashboardPage = () => {
         return sym;
     };
 
-    // ✅ symbol / market / timeframe 이 바뀔 때마다 자동으로 캔들 로딩
+    const monthsToBusinessDays = (months) => Math.max(1, Math.round(months * 21));
+
+    // ✅ symbol / market / timeframe 이 바뀔 때마다 자동으 캔들 로딩
     useEffect(() => {
         if (!symbol) return;
 
@@ -144,83 +110,168 @@ const DashboardPage = () => {
         { value: "Y", label: "년" },
     ];
 
+    const FORECAST_RANGE_OPTIONS = [
+        { value: 1, label: "1개월" },
+        { value: 3, label: "3개월" },
+        { value: 6, label: "6개월" },
+    ];
+
+    useEffect(() => {
+        if (!symbol) return;
+
+        const loadForecast = async () => {
+            try {
+                setIsLoadingForecast(true);
+                setForecastError(null);
+
+                const providerSymbol = getProviderSymbol(symbol, market);
+                const horizonDays = monthsToBusinessDays(forecastMonths);
+                const data = await fetchForecastBand(providerSymbol, horizonDays);
+                setForecastBand(data || []);
+            } catch (err) {
+                console.error("예측 밴드 로딩 오류:", err);
+                setForecastError("예측 밴드를 불러오는 중 문제가 발생했습니다.");
+                setForecastBand([]);
+            } finally {
+                setIsLoadingForecast(false);
+            }
+        };
+
+        loadForecast();
+    }, [symbol, market, forecastMonths]);
+
+    useEffect(() => {
+        if (!symbol) return;
+
+        const loadAccuracy = async () => {
+            try {
+                setIsLoadingAccuracy(true);
+                setAccuracyError(null);
+
+                const providerSymbol = getProviderSymbol(symbol, market);
+                const holdoutDays = monthsToBusinessDays(forecastMonths);
+                const metrics = await fetchForecastAccuracy(providerSymbol, holdoutDays);
+                setAccuracy(metrics);
+            } catch (err) {
+                console.error("정확도 검증 오류:", err);
+                setAccuracy(null);
+                setAccuracyError("최근 홀드아웃 예측 정확도를 계산하지 못했습니다.");
+            } finally {
+                setIsLoadingAccuracy(false);
+            }
+        };
+
+        loadAccuracy();
+    }, [symbol, market, forecastMonths]);
+
+    const changeRate = useMemo(() => {
+        if (!candles || candles.length < 2) return null;
+        const prevClose = candles[candles.length - 2]?.close;
+        if (!prevClose) return null;
+        return ((lastPrice - prevClose) / prevClose) * 100;
+    }, [candles, lastPrice]);
+
+    const changeBadgeClass = changeRate != null && changeRate >= 0
+        ? "bg-rose-500/15 text-rose-200"
+        : "bg-sky-500/15 text-sky-200";
+
     return (
         <div className="text-slate-100">
-            {/* 🔹 종목 정보 헤더 (앱 헤더와 탭 사이) */}
-            <div className="mb-3 flex flex-col gap-1">
-                <div className="flex items-baseline gap-2">
-          <span className="text-lg font-semibold text-slate-50">
-            {symbolName || symbol}
-          </span>
-                    <span className="text-xs text-sky-400">{symbol}</span>
-                    {market && (
-                        <span className="text-[11px] text-slate-500 uppercase">
-              {market}
-            </span>
-                    )}
-                </div>
-                <div className="text-xl font-bold text-slate-100">
-                    {formattedLastPrice !== "-" ? formattedLastPrice : "가격 정보 없음"}
-                </div>
-            </div>
+            {/* 🔹 종목 헤더 + 우측 컨트롤 세로 정렬 */}
+            <section className="mb-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-lg shadow-black/20">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h1 className="text-2xl font-bold text-slate-50">{symbolName || symbol}</h1>
+                            <span className="rounded-full bg-slate-900 px-2 py-1 text-[11px] font-semibold text-sky-300">
+                                {symbol}
+                            </span>
+                            {market && (
+                                <span className="rounded-full bg-slate-800 px-2 py-1 text-[11px] font-semibold text-slate-200 uppercase">
+                                    {market}
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <span className="text-3xl font-extrabold text-slate-50">
+                                {formattedLastPrice !== "-" ? formattedLastPrice : "가격 정보 없음"}
+                            </span>
+                            {changeRate != null && (
+                                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${changeBadgeClass}`}>
+                                    {`${changeRate >= 0 ? "+" : ""}${changeRate.toFixed(2)}%`}
+                                </span>
+                            )}
+                            {forecastMonths && (
+                                <span className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-slate-300">
+                                    미래 {forecastMonths}개월 밴드 추적
+                                </span>
+                            )}
+                        </div>
+                        <div className="text-[12px] text-slate-400">
+                            최근 종가 기준으로 예측 밴드와 AI 분석을 제공합니다.
+                        </div>
+                    </div>
 
-            {/* 🔹 상단: 뷰 선택 / 종목 검색 */}
-            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                {/* 차트 <-> AI 토글 */}
-                <div className="inline-flex items-center rounded-full bg-slate-900/80 p-1 border border-slate-800">
-                    <button
-                        type="button"
-                        onClick={() => setViewMode("chart")}
-                        className={`px-3 py-1.5 text-xs rounded-full transition ${
-                            viewMode === "chart"
-                                ? "bg-sky-500 text-white"
-                                : "text-slate-300 hover:text-slate-100"
-                        }`}
-                    >
-                        차트 보기
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setViewMode("ai")}
-                        className={`px-3 py-1.5 text-xs rounded-full transition ${
-                            viewMode === "ai"
-                                ? "bg-sky-500 text-white"
-                                : "text-slate-300 hover:text-slate-100"
-                        }`}
-                    >
-                        AI 분석 대시보드
-                    </button>
-                </div>
+                    <div className="flex flex-col items-stretch gap-2 lg:w-80 lg:items-end">
+                        <div className="inline-flex w-full items-center justify-end rounded-full border border-slate-800 bg-slate-900/80 p-1">
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("chart")}
+                                className={`px-3 py-1.5 text-xs rounded-full transition ${
+                                    viewMode === "chart"
+                                        ? "bg-sky-500 text-white"
+                                        : "text-slate-300 hover:text-slate-100"
+                                }`}
+                            >
+                                차트 보기
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("ai")}
+                                className={`px-3 py-1.5 text-xs rounded-full transition ${
+                                    viewMode === "ai"
+                                        ? "bg-sky-500 text-white"
+                                        : "text-slate-300 hover:text-slate-100"
+                                }`}
+                            >
+                                AI 분석 대시보드
+                            </button>
+                        </div>
 
-                {/* ✅ 분석하기 버튼 제거, SearchBar만 사용 */}
-                <div className="flex items-center gap-2">
-                    <SearchBar
-                        value={symbol}
-                        onSelect={(sym, item) => {
-                            console.log("SearchBar에서 선택된 종목:", sym, item);
-                            setSymbol(sym);
-                            setMarket(item.market);
-                            setSymbolName(item.name || sym);
-                            // 선택과 동시에 useEffect가 자동으로 차트 리로드
-                        }}
-                        placeholder="종목명 또는 코드 검색"
-                    />
+                        <div className="w-full max-w-full">
+                            <SearchBar
+                                value={symbol}
+                                onSelect={(sym, item) => {
+                                    console.log("SearchBar에서 선택된 종목:", sym, item);
+                                    setSymbol(sym);
+                                    setMarket(item.market);
+                                    setSymbolName(item.name || sym);
+                                    // 선택과 동시에 useEffect가 자동으로 차트 리로드
+                                }}
+                                placeholder="종목명 또는 코드 검색"
+                            />
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </section>
 
             {/* 🔹 차트 / AI 패널 */}
-            <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/80 px-5 py-4 shadow-md">
+            <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-4 shadow-md sm:px-5">
                 {/* 카드 상단 바: 선택된 종목 + 기간 / 차트 타입 버튼 */}
-                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs">
-                    <div className="text-[11px] text-slate-500">
-                        선택된 종목:{" "}
-                        <span className="text-sky-400 font-medium">{symbol}</span>
+                <div className="mb-3 flex flex-col gap-3 text-xs sm:gap-2 sm:text-[13px]">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="text-[11px] text-slate-500">
+                            선택된 종목:{" "}
+                            <span className="text-sky-400 font-medium">{symbol}</span>
+                        </div>
+
+                        <div className="text-[11px] text-slate-500 text-right">{formattedLastPrice !== "-" ? "실시간 가격 반영" : "종목 검색 후 실시간 가격을 불러옵니다."}</div>
                     </div>
 
                     {viewMode === "chart" && (
-                        <div className="flex items-center gap-3 justify-between sm:justify-end">
+                        <div className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                             {/* 기간 버튼: 일 / 주 / 월 / 년 */}
-                            <div className="flex items-center gap-1">
+                            <div className="flex w-full flex-wrap items-center gap-1 sm:w-auto">
                                 {TIMEFRAME_OPTIONS.map((p) => (
                                     <button
                                         key={p.value}
@@ -237,8 +288,55 @@ const DashboardPage = () => {
                                 ))}
                             </div>
 
+                            {/* 예측 범위 (최대 6개월) */}
+                            <div className="flex w-full flex-wrap items-center gap-2 text-[11px] text-slate-400 sm:w-auto">
+                                <span className="text-slate-500">예측 범위</span>
+                                {FORECAST_RANGE_OPTIONS.map((range) => (
+                                    <button
+                                        key={range.value}
+                                        type="button"
+                                        onClick={() => setForecastMonths(range.value)}
+                                        className={`px-2 py-1 rounded-full border transition ${
+                                            forecastMonths === range.value
+                                                ? "bg-emerald-600/80 border-emerald-400 text-white"
+                                                : "border-slate-700 text-slate-300 hover:border-slate-500"
+                                        }`}
+                                    >
+                                        {range.label}
+                                    </button>
+                                ))}
+                                <span className="text-[10px] text-slate-500">
+                                    {isLoadingForecast
+                                        ? "예측 업데이트 중..."
+                                        : `미래 ${forecastMonths}개월 밴드`}
+                                </span>
+                                {forecastError && (
+                                    <span className="text-[10px] text-red-400">
+                                        {forecastError}
+                                    </span>
+                                )}
+                                <div className="flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
+                                    {isLoadingAccuracy ? (
+                                        <span>정확도 검증 중...</span>
+                                    ) : accuracyError ? (
+                                        <span className="text-red-400">{accuracyError}</span>
+                                    ) : accuracy ? (
+                                        <>
+                                            <span className="text-slate-400">MAPE</span>
+                                            <span className="font-semibold text-emerald-300">
+                                                {accuracy.mape?.toFixed(2)}%
+                                            </span>
+                                            <span className="text-slate-500">· RMSE</span>
+                                            <span className="font-semibold text-emerald-300">
+                                                {accuracy.rmse?.toFixed(2)}
+                                            </span>
+                                        </>
+                                    ) : null}
+                                </div>
+                            </div>
+
                             {/* 캔들 / 라인 타입 */}
-                            <div className="flex items-center gap-1">
+                            <div className="flex w-full items-center gap-1 sm:w-auto">
                                 <button
                                     type="button"
                                     onClick={() => setChartType("candlestick")}
@@ -266,7 +364,7 @@ const DashboardPage = () => {
                     )}
                 </div>
 
-                <div className="h-[360px]">
+                <div className={viewMode === "chart" ? "h-[360px]" : ""}>
                     {viewMode === "chart" ? (
                         <div className="h-full rounded-xl bg-slate-950/80 overflow-hidden">
                             {isLoadingCandles ? (
@@ -282,17 +380,22 @@ const DashboardPage = () => {
                                     아직 차트 데이터가 없습니다. 상단에서 종목을 검색해 주세요.
                                 </div>
                             ) : (
-                                <PriceChart candles={candles} chartType={chartType} isKorean={isKoreanMarket} forecastBand={forecastBand}/>
+                                <PriceChart
+                                    candles={candles}
+                                    chartType={chartType}
+                                    isKorean={isKoreanMarket}
+                                    forecastBand={forecastBand}
+                                />
                             )}
                         </div>
                     ) : (
-                        <AiAnalysisPanel symbol={symbol} />
+                        <AiAnalysisPanel symbol={symbol} market={market} />
                     )}
                 </div>
             </section>
 
             {/* 🔹 포트폴리오 테이블 */}
-            <PortfolioTable items={MOCK_PORTFOLIO} />
+            <PortfolioTable items={holdings} />
         </div>
     );
 };
