@@ -58,7 +58,7 @@ const MetricItem = ({ label, value, accent }) => (
 const formatNumber = (value, isKorean) => {
     if (value == null || Number.isNaN(value)) return "-";
     return isKorean
-        ? `${Number(value).toLocaleString("ko-KR")}원`
+        ? `${Number(value).toLocaleString("ko-KR", { maximumFractionDigits: 0 })}원`
         : `$${Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
@@ -158,7 +158,7 @@ const AiAnalysisPanel = ({ symbol, market }) => {
                 <MetricItem
                     label="일간 변동률"
                     value={formatPct(analysis.change_rate)}
-                    accent={analysis.change_rate >= 0 ? "text-sm font-semibold text-emerald-300" : "text-sm font-semibold text-sky-300"}
+                    accent="text-sm font-semibold text-rose-300"
                 />
                 <MetricItem
                     label="변동성"
@@ -216,7 +216,7 @@ const AiAnalysisPanel = ({ symbol, market }) => {
                         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                             <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-[11px] text-slate-300">
                                 <div className="text-slate-400">상단 밴드 ({analysis.band?.horizon_label || "3개월"})</div>
-                                <div className="text-sm font-semibold text-emerald-200">{upperFormatted}</div>
+                                <div className="text-sm font-semibold text-rose-200">{upperFormatted}</div>
                             </div>
                             <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-[11px] text-slate-300">
                                 <div className="text-slate-400">중심선</div>
