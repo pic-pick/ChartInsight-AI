@@ -127,6 +127,12 @@ const AiAnalysisPanel = ({ symbol, market }) => {
 
     return (
         <div className="flex h-full flex-col gap-4 text-slate-100">
+            <div className="flex items-center gap-2 self-start rounded-full bg-slate-900 px-3 py-1 text-[12px] font-semibold text-slate-100">
+                <span>AI 분석 브리핑</span>
+                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
+                    실시간
+                </span>
+            </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
