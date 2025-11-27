@@ -36,8 +36,8 @@ const PortfolioPage = () => {
 
     return (
         <div className="space-y-6">
-            <header className="rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-lg shadow-black/20">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <header className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-lg shadow-black/20 sm:p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div className="space-y-1">
                         <p className="text-[11px] uppercase tracking-wide text-slate-500">나의 포트폴리오</p>
                         <h1 className="text-2xl font-bold text-slate-50">{user.name}님의 보유 종목</h1>
@@ -46,7 +46,7 @@ const PortfolioPage = () => {
                         </p>
                     </div>
 
-                    <div className="flex flex-col items-start gap-1 text-left lg:items-end lg:text-right">
+                    <div className="flex flex-col items-start gap-1 text-left md:items-end md:text-right">
                         <span className="text-xs uppercase tracking-wide text-slate-500">총 평가</span>
                         <span className="text-xl font-bold text-slate-50">
                             {totals.totalValue.toLocaleString()}원
@@ -64,12 +64,12 @@ const PortfolioPage = () => {
                     </div>
                 </div>
 
-                <div className="mt-4 overflow-x-auto">
-                    <div className="flex min-w-[720px] gap-3">
+                <div className="mt-4">
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         {summaryCards.map((card) => (
                             <div
                                 key={card.label}
-                                className={`flex flex-1 min-w-[170px] flex-col justify-between rounded-xl border border-slate-800 px-4 py-3 ${card.accent}`}
+                                className={`flex flex-col justify-between rounded-xl border border-slate-800 px-4 py-3 ${card.accent}`}
                             >
                                 <p className="text-[11px] uppercase tracking-wide text-slate-400">
                                     {card.label}

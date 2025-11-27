@@ -178,8 +178,8 @@ const DashboardPage = () => {
     return (
         <div className="text-slate-100">
             {/* 🔹 종목 헤더 + 우측 컨트롤 세로 정렬 */}
-            <section className="mb-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-lg shadow-black/20">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <section className="mb-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-3 shadow-lg shadow-black/20 sm:p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
                             <h1 className="text-2xl font-bold text-slate-50">{symbolName || symbol}</h1>
@@ -212,8 +212,8 @@ const DashboardPage = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col items-end gap-2 lg:w-80">
-                        <div className="inline-flex items-center rounded-full border border-slate-800 bg-slate-900/80 p-1">
+                    <div className="flex flex-col items-stretch gap-2 md:w-80 md:items-end">
+                        <div className="inline-flex w-full justify-end rounded-full border border-slate-800 bg-slate-900/80 p-1 md:w-auto">
                             <button
                                 type="button"
                                 onClick={() => setViewMode("chart")}
@@ -258,10 +258,12 @@ const DashboardPage = () => {
             {/* 🔹 차트 / AI 패널 */}
             <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/80 px-5 py-4 shadow-md">
                 {/* 카드 상단 바: 선택된 종목 + 기간 / 차트 타입 버튼 */}
-                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs">
-                    <div className="text-[11px] text-slate-500">
-                        선택된 종목:{" "}
-                        <span className="text-sky-400 font-medium">{symbol}</span>
+                <div className="mb-2 flex flex-col gap-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                        <span>선택된 종목</span>
+                        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-sky-300">
+                            {symbol}
+                        </span>
                     </div>
 
                     {viewMode === "chart" && (
@@ -360,7 +362,7 @@ const DashboardPage = () => {
                     )}
                 </div>
 
-                <div className={viewMode === "chart" ? "h-[360px]" : ""}>
+                <div className={viewMode === "chart" ? "h-[300px] sm:h-[360px]" : ""}>
                     {viewMode === "chart" ? (
                         <div className="h-full rounded-xl bg-slate-950/80 overflow-hidden">
                             {isLoadingCandles ? (

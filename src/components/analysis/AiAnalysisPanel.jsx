@@ -134,7 +134,7 @@ const AiAnalysisPanel = ({ symbol, market }) => {
                 </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
                 <MetricItem label="현재가" value={priceFormatted} />
                 <MetricItem
                     label="일간 변동률"
@@ -152,7 +152,7 @@ const AiAnalysisPanel = ({ symbol, market }) => {
                 />
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
                 <MetricItem
                     label="MACD"
                     value={`${macdState || "-"} (${(analysis.indicators?.macd_hist ?? 0).toFixed(3)})`}
@@ -176,7 +176,7 @@ const AiAnalysisPanel = ({ symbol, market }) => {
 
             <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-3">
                 <div className="col-span-2 space-y-3">
-                    <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-lg shadow-black/30">
+                    <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-3 shadow-lg shadow-black/30 sm:p-4">
                         <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-slate-200">
                             리스크 / 밴드 브리핑
                         </div>
@@ -210,7 +210,7 @@ const AiAnalysisPanel = ({ symbol, market }) => {
                         </div>
                     </div>
 
-                    <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-lg shadow-black/30">
+                    <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-3 shadow-lg shadow-black/30 sm:p-4">
                         <div className="mb-2 text-[12px] font-semibold text-slate-200">핵심 인사이트</div>
                         <ul className="space-y-2 text-sm text-slate-200">
                             {(analysis.quick_notes || []).map((note, idx) => (
@@ -226,7 +226,7 @@ const AiAnalysisPanel = ({ symbol, market }) => {
                 </div>
 
                 <div className="space-y-3">
-                    <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-lg shadow-black/30">
+                    <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-3 shadow-lg shadow-black/30 sm:p-4">
                         <div className="mb-2 flex items-center justify-between text-[12px] font-semibold text-slate-200">
                             <span>매매 액션 가이드</span>
                             <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-200">리스크 관리</span>
@@ -243,7 +243,7 @@ const AiAnalysisPanel = ({ symbol, market }) => {
                         </ol>
                     </div>
 
-                    <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-lg shadow-black/30">
+                    <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-3 shadow-lg shadow-black/30 sm:p-4">
                         <div className="mb-2 text-[12px] font-semibold text-slate-200">알림 / 모니터링 포인트</div>
                         <ul className="space-y-2 text-[12px] text-slate-300">
                             {(analysis.alerts || []).map((alert, idx) => (
