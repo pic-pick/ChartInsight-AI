@@ -81,12 +81,16 @@ class DecisionInsight(BaseModel):
     last_price: float
     change_rate: float
     volatility_score: int
+    volatility_label: str | None = None
     confidence: int
+    confidence_label: str | None = None
+    confidence_reason: str | None = None
     risk_label: str
     band: dict | None = None
     summary: str
     quick_notes: list[str]
     actions: list[str]
+    alerts: list[str] | None = None
     indicators: dict
 
 

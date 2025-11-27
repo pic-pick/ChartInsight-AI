@@ -8,7 +8,10 @@ const FALLBACK_ANALYSIS = {
     last_price: 52_300,
     change_rate: 0,
     volatility_score: 45,
+    volatility_label: "중간",
     confidence: 65,
+    confidence_label: "보통",
+    confidence_reason: "추세·모멘텀·밴드 폭을 조합해 신뢰도를 계산합니다.",
     risk_label: "중간",
     summary: "샘플 데이터입니다. 실시간 분석 결과가 준비되면 자동으로 대체됩니다.",
     quick_notes: [
@@ -20,6 +23,10 @@ const FALLBACK_ANALYSIS = {
         "이탈·돌파 시 알림을 걸어두세요.",
         "거래량 급증 여부를 체크하세요.",
         "리스크 점수가 60을 넘으면 비중 축소를 고려하세요.",
+    ],
+    alerts: [
+        "가격이 상단 밴드 근처라면 돌파/실패 시나리오를 함께 점검하세요.",
+        "하단 밴드 접근 시 손절·분할매수 기준을 미리 세팅해두세요.",
     ],
     band: {
         horizon_label: "3개월 ARIMA",
@@ -129,8 +136,15 @@ const AiAnalysisPanel = ({ symbol, market }) => {
                     value={formatPct(analysis.change_rate)}
                     accent={analysis.change_rate >= 0 ? "text-sm font-semibold text-emerald-300" : "text-sm font-semibold text-sky-300"}
                 />
-                <MetricItem label="변동성 점수" value={`${analysis.volatility_score} / 100`} />
-                <MetricItem label="신뢰 점수" value={`${analysis.confidence} / 100`} accent="text-sm font-semibold text-amber-200" />
+                <MetricItem
+                    label="변동성"
+                    value={`${analysis.volatility_score} / 100 (${analysis.volatility_label || "-"})`}
+                />
+                <MetricItem
+                    label="신뢰도"
+                    value={`${analysis.confidence} / 100 (${analysis.confidence_label || "-"})`}
+                    accent="text-sm font-semibold text-amber-200"
+                />
             </div>
 
             <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-3">
@@ -140,7 +154,14 @@ const AiAnalysisPanel = ({ symbol, market }) => {
                             리스크 / 밴드 브리핑
                         </div>
                         <div className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-3 text-sm text-slate-200">
+                            <div className="mb-2 flex items-center gap-2 text-[12px] text-slate-300">
+                                <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-200">리스크 {analysis.risk_label}</span>
+                                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-100">신뢰 {analysis.confidence_label || "-"}</span>
+                            </div>
                             {analysis.summary}
+                            {analysis.confidence_reason && (
+                                <div className="mt-2 text-[11px] text-slate-400">{analysis.confidence_reason}</div>
+                            )}
                             {error && <div className="mt-1 text-[11px] text-amber-300">{error}</div>}
                         </div>
                         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -194,19 +215,13 @@ const AiAnalysisPanel = ({ symbol, market }) => {
 
                     <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-lg shadow-black/30">
                         <div className="mb-2 text-[12px] font-semibold text-slate-200">알림 / 모니터링 포인트</div>
-                        <ul className="space-y-1 text-[12px] text-slate-300">
-                            <li className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                                거래량이 20% 이상 증가하면 돌파 가능성 알림
-                            </li>
-                            <li className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-amber-300" />
-                                하단 밴드( {lowerFormatted} ) 이탈 시 손절 검토
-                            </li>
-                            <li className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-sky-300" />
-                                주봉 기준 10EMA 재진입 여부 체크
-                            </li>
+                        <ul className="space-y-2 text-[12px] text-slate-300">
+                            {(analysis.alerts || []).map((alert, idx) => (
+                                <li key={idx} className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                                    <span className="mt-[6px] h-2 w-2 rounded-full bg-emerald-300" />
+                                    <span className="text-[13px] text-slate-100">{alert}</span>
+                                </li>
+                            ))}
                         </ul>
                     </div>
                 </div>

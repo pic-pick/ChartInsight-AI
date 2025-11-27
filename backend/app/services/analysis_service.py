@@ -97,16 +97,32 @@ def _calculate_indicators(df: pd.DataFrame) -> IndicatorSnapshot:
 
 
 def _score_volatility(hv20_pct: float) -> int:
-    # Scale 0~100: 0% vol -> 5, 40% vol -> ~100
-    score = min(100, max(0, int(hv20_pct * 2.5)))
-    return score
+    """Map realized volatility(HV20) to 0~100 with softer scaling.
+
+    Typical HV20가 15~35% 사이에 분포하는 점을 감안해, 완만한 곡선으로 점수를
+    부여한다. 극단적 변동성(>60%)만 90~100 구간으로 올라가도록 제한한다.
+    """
+
+    if hv20_pct is None or np.isnan(hv20_pct):
+        return 0
+
+    knots = [5, 15, 30, 45, 60, 90]
+    scores = [10, 30, 55, 70, 88, 100]
+    interpolated = np.interp(hv20_pct, knots, scores)
+    return int(max(0, min(100, round(interpolated))))
 
 
-def _score_confidence(trend_score: int, momentum_score: int, volatility_score: int) -> int:
-    base = 55
-    bonus = (trend_score - 50) * 0.25 + (momentum_score - 50) * 0.2
-    penalty = max(0, volatility_score - 60) * 0.3
-    return int(max(0, min(100, base + bonus - penalty)))
+def _score_confidence(
+    trend_score: int, momentum_score: int, volatility_score: int, band_range_pct: float
+) -> int:
+    """Blend trend/momentum strength with band 폭과 변동성 기반의 신뢰 점수."""
+
+    base = 60
+    bonus = (trend_score - 50) * 0.35 + (momentum_score - 50) * 0.25
+    volatility_penalty = max(0, volatility_score - 55) * 0.45
+    band_penalty = min(18, max(0, band_range_pct * 120)) if band_range_pct else 0
+    score = base + bonus - volatility_penalty - band_penalty
+    return int(max(0, min(100, round(score))))
 
 
 def _band_from_forecast(symbol: str, horizon_days: int = 63) -> Optional[BandSummary]:
@@ -125,39 +141,62 @@ def _band_from_forecast(symbol: str, horizon_days: int = 63) -> Optional[BandSum
 
 
 def _build_narrative(ind: IndicatorSnapshot, band: Optional[BandSummary]) -> Dict[str, str]:
-    trend_bias = "상승" if ind.sma20 > ind.sma60 else "중립" if abs(ind.sma20 - ind.sma60) / ind.sma60 < 0.01 else "하락"
+    ma_gap_pct = (ind.sma20 / ind.sma60 - 1) * 100 if ind.sma60 else 0
+    trend_bias = "완만한 상승" if ma_gap_pct > 1 else "중립" if -1 <= ma_gap_pct <= 1 else "하락"
     risk_label = "높음" if ind.hv20_pct > 45 or ind.mdd_pct < -25 else "중간" if ind.hv20_pct > 25 else "낮음"
 
-    summary_parts = [
-        f"20일선 vs 60일선: {ind.sma20:,.0f} / {ind.sma60:,.0f} → 추세 {trend_bias}",
-        f"20일 모멘텀 {ind.momentum20_pct:+.1f}% · 변동성(HV20) {ind.hv20_pct:.1f}%",  # noqa: E501
-        f"최대 낙폭 {ind.mdd_pct:.1f}% · ATR14 {ind.atr14:,.0f}",
-    ]
-
-    if band:
-        summary_parts.append(
-            f"예측 밴드({band.horizon_label}) {band.lower:,.0f} ~ {band.upper:,.0f}"
-        )
+    band_phrase = (
+        f"밴드 폭 {((band.upper - band.lower) / band.center * 100):.1f}%" if band else "밴드 정보 없음"
+    )
+    summary = (
+        f"20일선 대비 60일선 {ma_gap_pct:+.1f}%로 추세는 {trend_bias}, "
+        f"최근 모멘텀 {ind.momentum20_pct:+.1f}%와 연율화 변동성 {ind.hv20_pct:.1f}% (리스크 {risk_label}). "
+        + (f"{band.horizon_label} {band.lower:,.0f}~{band.upper:,.0f} ({band_phrase})." if band else "예측 밴드 대기 중.")
+    )
 
     quick_notes = [
-        f"변동성 {risk_label} / HV20 {ind.hv20_pct:.1f}%",
-        f"모멘텀 {ind.momentum20_pct:+.1f}% · MDD {ind.mdd_pct:.1f}%",
-        "볼린저 상단·하단 터치 여부를 모니터링하세요.",
+        f"모멘텀 {ind.momentum20_pct:+.1f}% · HV20 {ind.hv20_pct:.1f}% → {risk_label} 변동성 구간",
+        f"최대 낙폭 {ind.mdd_pct:.1f}% · ATR14 {ind.atr14:,.0f} (최근 저점 대비 회복력 확인 필요)",
+        "볼린저 상·하단 근처에서는 분할 대응으로 리스크 조절",
     ]
 
     actions = [
-        "분할 접근으로 리스크 분산 (1/3씩 매수·매도)",
-        "거래량이 20일 평균 대비 20% 이상 확대되면 추세 확인",
-        "밴드 하단 및 60일선 이탈 시 손절/비중 축소 고려",
+        "1) 상승 추세 유지 시 눌림 구간에서 분할 매수, 60일선 훼손 시 비중 축소",
+        "2) 거래량이 20일 평균 대비 크게 붙을 때 돌파/가속 여부 확인",
+        "3) 밴드 하단 근처에서는 손절·헤지 조건을 미리 설정",
     ]
 
-    summary = " · ".join(summary_parts)
     return {
         "summary": summary,
         "risk_label": risk_label,
         "quick_notes": quick_notes,
         "actions": actions,
     }
+
+
+def _build_alerts(ind: IndicatorSnapshot, band: Optional[BandSummary]) -> List[str]:
+    alerts: List[str] = []
+
+    if band:
+        mid = band.center
+        upper_gap = (band.upper / ind.close - 1) * 100 if ind.close else 0
+        lower_gap = (ind.close / band.lower - 1) * 100 if band.lower else 0
+        if upper_gap < 6:
+            alerts.append(f"가격이 상단 밴드까지 {upper_gap:.1f}% 남았습니다. 돌파 시 추세 가속을 점검하세요.")
+        if lower_gap < 6:
+            alerts.append(f"하단 밴드 이탈 시 {lower_gap:.1f}% 내외 손실 구간입니다. 손절·헤지 조건을 미리 명시하세요.")
+        band_span_pct = (band.upper - band.lower) / mid * 100 if mid else 0
+        alerts.append(f"예측 밴드 폭 {band_span_pct:.1f}% → 변동성 대비 포지션 사이징을 보수적으로 잡으세요.")
+
+    if ind.momentum20_pct > 5:
+        alerts.append("20일 모멘텀 +5% 이상으로 단기 상승 탄력이 있습니다. 수익 실현 구간을 단계별로 설정하세요.")
+    elif ind.momentum20_pct < -5:
+        alerts.append("단기 모멘텀이 음(-)전환되어 저점 재확인 가능성. 반등 시 손절·축소 기준을 점검하세요.")
+
+    if ind.hv20_pct > 45:
+        alerts.append("극단적 변동성 구간입니다. 손익비 1:2 이상 확보 후 진입을 권고합니다.")
+
+    return alerts[:5]
 
 
 def build_decision_insight(symbol: str, period: str = "1y") -> Dict:
@@ -174,22 +213,40 @@ def build_decision_insight(symbol: str, period: str = "1y") -> Dict:
         trend_score = 70 if ind.sma20 > ind.sma60 else 45
         momentum_score = min(100, max(0, 50 + ind.momentum20_pct))
         volatility_score = _score_volatility(ind.hv20_pct)
-        confidence = _score_confidence(trend_score, momentum_score, volatility_score)
 
         band = _band_from_forecast(symbol)
+        band_range_pct = (
+            (band.upper - band.lower) / band.center if band and band.center else 0.0
+        )
+        confidence = _score_confidence(
+            trend_score, momentum_score, volatility_score, band_range_pct
+        )
+
+        volatility_label = "낮음" if volatility_score < 35 else "중간" if volatility_score < 70 else "높음"
+        confidence_label = "높음" if confidence >= 70 else "보통" if confidence >= 45 else "낮음"
+        confidence_reason = (
+            f"추세 점수 {trend_score}, 모멘텀 점수 {momentum_score}, 변동성 점수 {volatility_score}. "
+            f"예측 밴드 폭 {band_range_pct*100:.1f}%을 반영해 신뢰도를 계산했습니다."
+        )
+
         narrative = _build_narrative(ind, band)
+        alerts = _build_alerts(ind, band)
 
         return {
             "symbol": symbol,
             "last_price": ind.close,
             "change_rate": ind.change_rate,
             "volatility_score": volatility_score,
+            "volatility_label": volatility_label,
             "confidence": confidence,
+            "confidence_label": confidence_label,
+            "confidence_reason": confidence_reason,
             "risk_label": narrative["risk_label"],
             "band": band.__dict__ if band else None,
             "summary": narrative["summary"],
             "quick_notes": narrative["quick_notes"],
             "actions": narrative["actions"],
+            "alerts": alerts,
             "indicators": {
                 "sma20": ind.sma20,
                 "sma60": ind.sma60,
