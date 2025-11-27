@@ -2,7 +2,8 @@
 from fastapi import APIRouter, HTTPException, Query
 from ..services.forecast_service import get_forecast_band, evaluate_forecast_accuracy
 
-router = APIRouter(prefix="/api", tags=["forecast"])
+# prefix="/forecast" → /api/forecast/... 로 쓰게 됨 (main.py에서 prefix="/api" 추가)
+router = APIRouter(prefix="/forecast", tags=["forecast"])
 
 
 @router.get("/forecast/{symbol}")
