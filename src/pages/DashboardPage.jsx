@@ -9,56 +9,10 @@ import {
     fetchForecastAccuracy,
     fetchStockCandles,
 } from "../api/stockApi";
-
-// 테스트용 포트폴리오 데이터 (그대로 사용)
-const MOCK_PORTFOLIO = [
-    {
-        symbol: "TSLL",
-        displayName: "TSLL",
-        currentPrice: 24364,
-        avgPrice: 24364,
-        shares: 2,
-        totalInvested: 56061,
-        changeRate: 1.22,
-        volatilityScore: 72,
-        riskLevel: "보통",
-    },
-    {
-        symbol: "005380",
-        displayName: "현대차",
-        currentPrice: 273000,
-        avgPrice: 273000,
-        shares: 4,
-        totalInvested: 461500,
-        changeRate: -1.97,
-        volatilityScore: 65,
-        riskLevel: "보통",
-    },
-    {
-        symbol: "005930",
-        displayName: "삼성전자",
-        currentPrice: 97500,
-        avgPrice: 97500,
-        shares: 2,
-        totalInvested: 138044,
-        changeRate: -5.15,
-        volatilityScore: 83,
-        riskLevel: "높음",
-    },
-    {
-        symbol: "000000",
-        displayName: "지니어스 그룹",
-        currentPrice: 1268,
-        avgPrice: 1268,
-        shares: 4,
-        totalInvested: 55100,
-        changeRate: 2.84,
-        volatilityScore: 35,
-        riskLevel: "낮음",
-    },
-];
+import { useUserPortfolio } from "../context/UserPortfolioContext";
 
 const DashboardPage = () => {
+    const { holdings } = useUserPortfolio();
     const [symbol, setSymbol] = useState("005930");
     const [symbolName, setSymbolName] = useState("삼성전자");
     const [market, setMarket] = useState("KRX");
@@ -437,7 +391,7 @@ const DashboardPage = () => {
             </section>
 
             {/* 🔹 포트폴리오 테이블 */}
-            <PortfolioTable items={MOCK_PORTFOLIO} />
+            <PortfolioTable items={holdings} />
         </div>
     );
 };
