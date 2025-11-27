@@ -133,22 +133,6 @@ const AiAnalysisPanel = ({ symbol, market }) => {
                     실시간
                 </span>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm text-slate-300">AI 분석 브리핑</span>
-                        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-200">
-                            {loading ? "데이터 로딩" : error ? "더미" : "실시간"}
-                        </span>
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                        <span className="text-lg font-semibold text-slate-50">{analysis.name || symbol}</span>
-                        <span className="text-xs text-sky-300">{symbol}</span>
-                        <span className="text-[11px] text-slate-500 uppercase">{market}</span>
-                    </div>
-                    <div className="text-2xl font-bold text-slate-100">{priceFormatted}</div>
-                </div>
-            </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <MetricItem label="현재가" value={priceFormatted} />
