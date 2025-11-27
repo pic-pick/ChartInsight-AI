@@ -4,7 +4,7 @@ import PriceChart from "../components/charts/PriceChart";
 import PortfolioTable from "../components/portfolio/PortfolioTable";
 import AiAnalysisPanel from "../components/analysis/AiAnalysisPanel";
 import SearchBar from "../components/SearchBar";
-import { fetchStockCandles } from "../api/stockApi";
+import { fetchStockCandles, fetchForecastBand } from "../api/stockApi";
 
 // 테스트용 포트폴리오 데이터 (그대로 사용)
 const MOCK_PORTFOLIO = [
@@ -25,7 +25,7 @@ const MOCK_PORTFOLIO = [
         currentPrice: 273000,
         avgPrice: 273000,
         shares: 4,
-        totalInvested: 461500,
+        totalInvested: 1092000,
         changeRate: -1.97,
         volatilityScore: 65,
         riskLevel: "보통",
@@ -36,10 +36,10 @@ const MOCK_PORTFOLIO = [
         currentPrice: 97500,
         avgPrice: 97500,
         shares: 2,
-        totalInvested: 138044,
+        totalInvested: 195000,
         changeRate: -5.15,
-        volatilityScore: 83,
-        riskLevel: "높음",
+        volatilityScore: 63,
+        riskLevel: "위험도 보통",
     },
     {
         symbol: "000000",
@@ -47,7 +47,7 @@ const MOCK_PORTFOLIO = [
         currentPrice: 1268,
         avgPrice: 1268,
         shares: 4,
-        totalInvested: 55100,
+        totalInvested: 5072,
         changeRate: 2.84,
         volatilityScore: 35,
         riskLevel: "낮음",
@@ -55,12 +55,13 @@ const MOCK_PORTFOLIO = [
 ];
 
 const DashboardPage = () => {
+    // 기본 선택 종목
     const [symbol, setSymbol] = useState("005930");
     const [symbolName, setSymbolName] = useState("삼성전자");
     const [market, setMarket] = useState("KRX");
 
     const [candles, setCandles] = useState([]);
-    const [forecastBand, setForecastBand] = useState([]); // ✅ 예측 밴드
+    const [forecastBand, setForecastBand] = useState([]); // 예측 밴드
     const [viewMode, setViewMode] = useState("chart"); // "chart" | "ai"
 
     // 기간: 일 / 주 / 월 / 년
@@ -86,13 +87,14 @@ const DashboardPage = () => {
 
     const formattedLastPrice = useMemo(() => {
         if (lastPrice == null) return "-";
+
         if (isKoreanMarket) {
             return `${Number(lastPrice).toLocaleString("ko-KR")}원`;
         }
         return `$${Number(lastPrice).toFixed(2)}`;
     }, [lastPrice, isKoreanMarket]);
 
-    // 외부 서비스용 심볼 포맷 변환
+    // 외부 서비스(yfinance 등)용 심볼 포맷 변환
     const getProviderSymbol = (sym, mkt) => {
         if (!sym) return "";
 
@@ -110,10 +112,25 @@ const DashboardPage = () => {
             return `${sym}.KQ`;
         }
 
+        // 나머지는 심볼 그대로
         return sym;
     };
 
-    // ✅ symbol / market / timeframe 이 바뀔 때마다 자동으로 캔들 로딩
+    // 🔍 SearchBar에서 종목 선택 시 호출
+    // SearchBar는 onSelect(symbol, item) 형태로 호출함
+    const handleSearchSelect = (selectedSymbol, item) => {
+        if (!selectedSymbol) return;
+
+        setSymbol(selectedSymbol); // "005930" 같은 코드
+        setSymbolName(item?.name || selectedSymbol);
+        setMarket(item?.market || "KRX");
+
+        // 종목 바뀔 때 기존 차트/예측 초기화
+        setCandles([]);
+        setForecastBand([]);
+    };
+
+    // symbol / market / timeframe 이 바뀔 때마다 캔들 + 예측 밴드 로딩
     useEffect(() => {
         if (!symbol) return;
 
@@ -123,12 +140,24 @@ const DashboardPage = () => {
                 setCandlesError(null);
 
                 const providerSymbol = getProviderSymbol(symbol, market);
+
+                // 1) 기본 캔들 데이터 로딩
                 const data = await fetchStockCandles(providerSymbol, timeframe);
                 setCandles(data || []);
+
+                // 2) 예측 밴드 데이터 로딩
+                try {
+                    const forecast = await fetchForecastBand(providerSymbol);
+                    setForecastBand(forecast || []);
+                } catch (forecastErr) {
+                    console.error("예측 밴드 로딩 오류:", forecastErr);
+                    setForecastBand([]);
+                }
             } catch (err) {
                 console.error("캔들 데이터 로딩 오류:", err);
                 setCandlesError("차트 데이터를 불러오는 중 문제가 발생했습니다.");
                 setCandles([]);
+                setForecastBand([]);
             } finally {
                 setIsLoadingCandles(false);
             }
@@ -145,100 +174,81 @@ const DashboardPage = () => {
     ];
 
     return (
-        <div className="text-slate-100">
-            {/* 🔹 종목 정보 헤더 (앱 헤더와 탭 사이) */}
-            <div className="mb-3 flex flex-col gap-1">
-                <div className="flex items-baseline gap-2">
-          <span className="text-lg font-semibold text-slate-50">
-            {symbolName || symbol}
-          </span>
-                    <span className="text-xs text-sky-400">{symbol}</span>
-                    {market && (
-                        <span className="text-[11px] text-slate-500 uppercase">
-              {market}
-            </span>
-                    )}
-                </div>
-                <div className="text-xl font-bold text-slate-100">
-                    {formattedLastPrice !== "-" ? formattedLastPrice : "가격 정보 없음"}
-                </div>
-            </div>
-
-            {/* 🔹 상단: 뷰 선택 / 종목 검색 */}
-            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                {/* 차트 <-> AI 토글 */}
-                <div className="inline-flex items-center rounded-full bg-slate-900/80 p-1 border border-slate-800">
-                    <button
-                        type="button"
-                        onClick={() => setViewMode("chart")}
-                        className={`px-3 py-1.5 text-xs rounded-full transition ${
-                            viewMode === "chart"
-                                ? "bg-sky-500 text-white"
-                                : "text-slate-300 hover:text-slate-100"
-                        }`}
-                    >
-                        차트 보기
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setViewMode("ai")}
-                        className={`px-3 py-1.5 text-xs rounded-full transition ${
-                            viewMode === "ai"
-                                ? "bg-sky-500 text-white"
-                                : "text-slate-300 hover:text-slate-100"
-                        }`}
-                    >
-                        AI 분석 대시보드
-                    </button>
+        <div className="space-y-6">
+            {/* 🔹 상단 헤더: 현재 종목 / 가격 */}
+            <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                <div>
+                    <h1 className="text-base font-semibold text-slate-100">
+                        {symbolName}{" "}
+                        <span className="text-xs text-slate-400">
+                            {symbol} {market && `(${market})`}
+                        </span>
+                    </h1>
+                    <div className="mt-1 text-2xl font-bold text-slate-50">
+                        {formattedLastPrice}
+                    </div>
                 </div>
 
-                {/* ✅ 분석하기 버튼 제거, SearchBar만 사용 */}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
                     <SearchBar
-                        value={symbol}
-                        onSelect={(sym, item) => {
-                            console.log("SearchBar에서 선택된 종목:", sym, item);
-                            setSymbol(sym);
-                            setMarket(item.market);
-                            setSymbolName(item.name || sym);
-                            // 선택과 동시에 useEffect가 자동으로 차트 리로드
-                        }}
-                        placeholder="종목명 또는 코드 검색"
+                        value={symbol}                 // ✅ SearchBar가 기대하는 prop
+                        onSelect={handleSearchSelect}  // (symbol, item) 받는 핸들러
+                        placeholder="종목 코드 또는 종목명을 검색해 주세요"
                     />
                 </div>
-            </div>
+            </header>
 
-            {/* 🔹 차트 / AI 패널 */}
-            <section className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/80 px-5 py-4 shadow-md">
-                {/* 카드 상단 바: 선택된 종목 + 기간 / 차트 타입 버튼 */}
-                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs">
-                    <div className="text-[11px] text-slate-500">
-                        선택된 종목:{" "}
-                        <span className="text-sky-400 font-medium">{symbol}</span>
+            {/* 🔹 메인 섹션: 차트 / AI 패널 */}
+            <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                {/* 상단: 뷰 선택 / 기간 / 차트타입 */}
+                <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    {/* 차트 <-> AI 토글 */}
+                    <div className="inline-flex items-center rounded-full bg-slate-900/80 p-1 border border-slate-800">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode("chart")}
+                            className={`px-3 py-1.5 text-xs rounded-full transition ${
+                                viewMode === "chart"
+                                    ? "bg-sky-500 text-white"
+                                    : "text-slate-300 hover:text-slate-100"
+                            }`}
+                        >
+                            차트 보기
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode("ai")}
+                            className={`px-3 py-1.5 text-xs rounded-full transition ${
+                                viewMode === "ai"
+                                    ? "bg-sky-500 text-white"
+                                    : "text-slate-300 hover:text-slate-100"
+                            }`}
+                        >
+                            AI 분석 대시보드
+                        </button>
                     </div>
 
+                    {/* 기간 / 차트 타입 */}
                     {viewMode === "chart" && (
-                        <div className="flex items-center gap-3 justify-between sm:justify-end">
-                            {/* 기간 버튼: 일 / 주 / 월 / 년 */}
-                            <div className="flex items-center gap-1">
-                                {TIMEFRAME_OPTIONS.map((p) => (
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <div className="inline-flex rounded-full bg-slate-900/80 p-1 border border-slate-800">
+                                {TIMEFRAME_OPTIONS.map((opt) => (
                                     <button
-                                        key={p.value}
+                                        key={opt.value}
                                         type="button"
-                                        onClick={() => setTimeframe(p.value)} // ✅ 클릭 즉시 useEffect로 차트 갱신
-                                        className={`px-2 py-1 text-[11px] rounded-full border transition ${
-                                            timeframe === p.value
-                                                ? "bg-sky-500/90 border-sky-400 text-white"
-                                                : "border-slate-700 text-slate-300 hover:border-slate-500"
+                                        onClick={() => setTimeframe(opt.value)}
+                                        className={`px-2 py-1 rounded-full ${
+                                            timeframe === opt.value
+                                                ? "bg-sky-500 text-white"
+                                                : "text-slate-300 hover:text-slate-100"
                                         }`}
                                     >
-                                        {p.label}
+                                        {opt.label}
                                     </button>
                                 ))}
                             </div>
 
-                            {/* 캔들 / 라인 타입 */}
-                            <div className="flex items-center gap-1">
+                            <div className="inline-flex rounded-full bg-slate-900/80 p-1 border border-slate-800">
                                 <button
                                     type="button"
                                     onClick={() => setChartType("candlestick")}
@@ -282,7 +292,12 @@ const DashboardPage = () => {
                                     아직 차트 데이터가 없습니다. 상단에서 종목을 검색해 주세요.
                                 </div>
                             ) : (
-                                <PriceChart candles={candles} chartType={chartType} isKorean={isKoreanMarket} forecastBand={forecastBand}/>
+                                <PriceChart
+                                    candles={candles}
+                                    chartType={chartType}
+                                    isKorean={isKoreanMarket}
+                                    forecastBand={forecastBand} // 예측 밴드 전달
+                                />
                             )}
                         </div>
                     ) : (

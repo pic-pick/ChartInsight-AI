@@ -2,9 +2,10 @@
 from fastapi import APIRouter, HTTPException
 from ..services.forecast_service import get_forecast_band
 
-router = APIRouter(prefix="/api", tags=["forecast"])
+# ✅ 여기 prefix를 "/forecast" 로 변경
+router = APIRouter(prefix="/forecast", tags=["forecast"])
 
-@router.get("/forecast/{symbol}")
+@router.get("/{symbol}")
 def forecast_band(symbol: str, horizon: int = 20):
     try:
         data = get_forecast_band(symbol, horizon=horizon)

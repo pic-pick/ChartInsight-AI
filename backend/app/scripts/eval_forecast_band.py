@@ -12,10 +12,13 @@ from datetime import timedelta
 #  - 예측 밴드 안에 실제 가격이 들어왔는지(coverage)와 오차(RMSE, MAPE)를 계산합니다.
 def evaluate_forecast_band(
         symbol: str,
-        period: str = "1y",
-        test_days: int = 60,
+        period: str = "2y",
+        test_days: int = 90,
         conf: float = 0.9,
         arima_order=(1, 1, 1),
+        scale_factor: float = 1.0,
+        use_log: bool = False,
+        use_empirical_band: bool = False,
 ):
     """
     과거 데이터에서 마지막 test_days 구간을 테스트로 잡고
@@ -67,6 +70,18 @@ def evaluate_forecast_band(
         lower = conf_int[0]
         upper = conf_int[1]
 
+        # -------------------------
+        # 밴드 보정(캘리브레이션)
+        # scale_factor > 1.0 이면 밴드를 넓혀 coverage 증가
+        if scale_factor != 1.0:
+            # mean 대비 폭을 계산
+            lower_diff = mean - lower
+            upper_diff = upper - mean
+            # 스케일 조정된 밴드 적용
+            lower = mean - lower_diff * scale_factor
+            upper = mean + upper_diff * scale_factor
+        # -------------------------
+
         # 현재 test_date가 전체 시계열에서 몇 번째 위치인지 찾고
         idx_pos = close.index.get_loc(test_date)
         if idx_pos + 1 >= len(close):
@@ -108,6 +123,33 @@ def evaluate_forecast_band(
     if df.empty:
         raise ValueError("No evaluation records generated")
 
+    # 잔차(실제-예측 평균) 분포를 사용해 경험적(empirical) 예측 밴드를 구성하는 옵션
+    # 이 경우, 이론적 정규분포 기반 conf_int 대신 실제 잔차 분포의 분위수를 사용
+    # 잔차(실제-예측 평균)의 "비율" 분포를 사용해 경험적(empirical) 예측 밴드를 구성하는 옵션
+    # 절대 오차가 아니라 (actual 대비) 퍼센트 오차를 기반으로 분위수를 계산하여
+    # 종목 가격 레벨에 따라 자연스럽게 다른 밴드 폭이 나오도록 한다.
+    if use_empirical_band:
+        # 비율 잔차: (실제 - 예측) / 실제
+        residuals_pct = (df["actual"] - df["mean"]) / df["actual"]
+
+        alpha = 1 - conf
+        # 예: conf=0.9 -> alpha=0.1 -> 하위 5%, 상위 95%
+        lower_q = residuals_pct.quantile(alpha / 2)
+        upper_q = residuals_pct.quantile(1 - alpha / 2)
+
+        # 각 시점의 mean에 같은 비율(%) 오프셋을 적용해 밴드 생성
+        df["lower_emp"] = df["mean"] * (1 + lower_q)
+        df["upper_emp"] = df["mean"] * (1 + upper_q)
+
+        df["inside_band_emp"] = (
+                (df["actual"] >= df["lower_emp"]) & (df["actual"] <= df["upper_emp"])
+        )
+
+        # 아래 지표 계산 및 이후 사용을 위해 기본 lower/upper/inside_band를
+        # 경험적(empirical) 밴드 기준으로 덮어쓴다.
+        df["lower"] = df["lower_emp"]
+        df["upper"] = df["upper_emp"]
+        df["inside_band"] = df["inside_band_emp"]
     # 평가 지표 계산
     # coverage : 예측 밴드 안에 실제 값이 들어온 비율(%)
     # rmse     : 평균 제곱근 오차 (값이 작을수록 좋음)
@@ -126,17 +168,21 @@ def evaluate_forecast_band(
 
 # 이 아래 코드는 스크립트를 직접 실행했을 때만 동작하는 예시 실행 부분입니다.
 # (다른 모듈에서 import 해서 evaluate_forecast_band를 사용할 때는 실행되지 않습니다.)
+# python scripts/eval_forecast_band.py
 if __name__ == "__main__":
     # 테스트할 심볼 지정
-    symbol = "TSLL"   # 삼성전자는 "005930.KS"
+    symbol = "047050.KS"   # 삼성전자는 "005930.KS"
 
     # 평가 실행
     df = evaluate_forecast_band(
         symbol=symbol,
         period="2y",
-        test_days=60,
+        test_days=90,
         conf=0.9,
         arima_order=(1, 1, 1),
+        scale_factor=1.0,   # 스케일 보정은 사용하지 않음 (경험적 밴드 사용)
+        use_log=True,
+        use_empirical_band=True,
     )
 
     print("\n--- Raw Results (head) ---")

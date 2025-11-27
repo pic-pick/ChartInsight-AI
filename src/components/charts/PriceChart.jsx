@@ -15,9 +15,9 @@ import {
  *              false -> 달러 표시 (소수점 2자리 + 콤마)
  * forecastBand: 예측 밴드 데이터
  *   [{ time: '2025-01-01', lower, upper, mean }]
- *   - lower: 예측 하단
- *   - upper: 예측 상단
- *   - mean : 중앙값(회귀직선)
+ *   - lower: 예측 하단 (Min)
+ *   - upper: 예측 상단 (Max)
+ *   - mean : 중앙값(Avg)
  */
 const PriceChart = ({
                         candles = [],
@@ -25,35 +25,31 @@ const PriceChart = ({
                         isKorean = false,
                         forecastBand = [],
                     }) => {
-    // 실제 차트를 붙일 DOM 요소
     const containerRef = useRef(null);
-    // lightweight-charts 에서 만든 chart 인스턴스를 기억해 두는 ref
     const chartRef = useRef(null);
 
     useEffect(() => {
-        // DOM이 아직 없거나, 데이터가 하나도 없으면 차트 만들지 않음
         if (!containerRef.current || !candles.length) return;
 
-        // 이미 만들어진 차트가 있으면 먼저 제거 (메모리/이벤트 정리)
+        // 이미 만들어진 차트가 있으면 제거
         if (chartRef.current) {
             chartRef.current.remove();
             chartRef.current = null;
         }
 
-        // 가격 포맷: 원(정수 + 콤마) / 달러(소수 + 콤마)
+        // 가격 포맷: 원 / 달러
         const priceFormat = isKorean
             ? {
                 type: "custom",
-                minMove: 1, // 1원 단위
+                minMove: 1,
                 formatter: (price) =>
-                    Math.round(price).toLocaleString("ko-KR"), // 예: 96,500
+                    Math.round(price).toLocaleString("ko-KR"),
             }
             : {
                 type: "custom",
-                minMove: 0.01, // 0.01 단위
+                minMove: 0.01,
                 formatter: (price) => {
                     if (price == null || isNaN(price)) return "";
-                    // 소수점 둘째 자리까지 + 천 단위 콤마
                     return Number(price)
                         .toFixed(2)
                         .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -65,28 +61,26 @@ const PriceChart = ({
             width: containerRef.current.clientWidth,
             height: 340,
             layout: {
-                background: { color: "#020617" }, // 아주 짙은 남색(다크모드)
-                textColor: "#cbd5f5",             // 축/라벨 글자색
+                background: { color: "#020617" }, // 진한 네이비
+                textColor: "#cbd5f5",
             },
             grid: {
-                vertLines: { color: "#0f172a" },  // 세로 그리드
-                horzLines: { color: "#0f172a" },  // 가로 그리드
+                vertLines: { color: "#0f172a" },
+                horzLines: { color: "#0f172a" },
             },
             localization: {
                 locale: "ko-KR",
-                // 크로스헤어/툴팁/축에서 쓰는 날짜 포맷
                 dateFormat: "yyyy-MM-dd",
             },
             timeScale: {
-                borderColor: "#2764c6",   // 아래 타임축 경계선 색
-                timeVisible: false,       // 시/분/초 숨기고 날짜만
+                borderColor: "#2764c6",
+                timeVisible: false,
                 secondsVisible: false,
             },
             rightPriceScale: {
                 borderColor: "#1e293b",
-                scaleMargins: { top: 0.1, bottom: 0.1 }, // 위/아래 여백
+                scaleMargins: { top: 0.1, bottom: 0.1 },
             },
-            // 마우스 스크롤/드래그로 차트 이동 허용
             handleScroll: {
                 mouseWheel: true,
                 pressedMouseMove: true,
@@ -95,34 +89,30 @@ const PriceChart = ({
             },
             handleScale: {
                 axisPressedMouseMove: {
-                    time: true,   // 아래 시간축을 드래그해서 확대/축소 허용
-                    price: false, // 오른쪽 가격축은 드래그 확대/축소 금지
+                    time: true,
+                    price: false,
                 },
-                mouseWheel: true, // 휠로 전체 스케일 조정은 허용
+                mouseWheel: true,
                 pinch: true,
             },
             crosshair: {
-                // 마우스 위치 그대로 따라다니도록 (자석 모드 X)
                 mode: CrosshairMode.Normal,
-                // 세로선(시간) 라벨 → 아래에 날짜 박스가 뜸
                 vertLine: {
                     labelVisible: true,
                     style: LineStyle.Dashed,
                     width: 1,
                 },
-                // 가로선(가격) 라벨 → 오른쪽 가격 박스
                 horzLine: {
                     labelVisible: true,
                 },
             },
         });
 
-        // chartRef에 저장해서 나중에 clean-up 때 사용
         chartRef.current = chart;
 
-        // lightweight-charts에서 요구하는 포맷으로 변환
+        // 캔들 데이터 포맷 변환
         const seriesData = candles.map((c) => ({
-            time: c.time, // "YYYY-MM-DD"
+            time: c.time, // ⚠ time은 "YYYY-MM-DD" 형식이어야 함
             open: c.open,
             high: c.high,
             low: c.low,
@@ -131,19 +121,19 @@ const PriceChart = ({
 
         let priceSeries;
 
-        // ============================
-        // ① 가격 시리즈 (캔들/라인)
-        // ============================
+        // ==============
+        // ① 가격 시리즈
+        // ==============
         if (chartType === "line") {
-            // 라인(면적) 차트
+            // 라인(Area) 차트
             priceSeries = chart.addAreaSeries({
                 lineWidth: 2,
-                topColor: "rgba(248, 113, 113, 0.4)",      // 위쪽 영역 색
-                bottomColor: "rgba(15, 23, 42, 0.9)",      // 아래쪽 영역 색
-                lineColor: "#f87171",                       // 라인 색 (빨강)
+                topColor: "rgba(248, 113, 113, 0.4)",
+                bottomColor: "rgba(15, 23, 42, 0.9)",
+                lineColor: "#f87171",
                 priceLineVisible: false,
                 lastValueVisible: false,
-                priceFormat, // 라인 차트에도 가격 포맷 적용
+                priceFormat,
             });
 
             priceSeries.setData(
@@ -155,64 +145,128 @@ const PriceChart = ({
         } else {
             // 캔들 차트
             priceSeries = chart.addCandlestickSeries({
-                upColor: "#ef4444",       // 양봉 빨강
-                downColor: "#3b82f6",     // 음봉 파랑
+                upColor: "#ef4444", // 양봉 빨강
+                downColor: "#3b82f6", // 음봉 파랑
                 borderUpColor: "#ef4444",
                 borderDownColor: "#3b82f6",
                 wickUpColor: "#ef4444",
                 wickDownColor: "#3b82f6",
-                priceLineVisible: false,  // 기본 마지막값 라인 숨김
-                lastValueVisible: false,  // 기본 마지막값 라벨 숨김
-                priceFormat,              // 캔들 차트에도 가격 포맷 적용
+                priceLineVisible: false,
+                lastValueVisible: false,
+                priceFormat,
             });
 
             priceSeries.setData(seriesData);
         }
 
-        // 혹시 위에서 옵션이 덮여쓰일 수 있으니 안전하게 한 번 더 적용
         priceSeries.applyOptions({
             priceLineVisible: false,
             lastValueVisible: false,
         });
 
         // ============================
-        // ② 예측 밴드 시리즈 (있을 때만)
+        // ② 예측 팬(Fan) 영역 + 평균선
         // ============================
         if (forecastBand && forecastBand.length > 0) {
-            // 상단/하단은 점선, 중앙선은 실선으로 표시
-            const upperSeries = chart.addLineSeries({
-                color: "rgba(56, 189, 248, 0.9)",  // 밝은 파랑
-                lineWidth: 1,
-                lineStyle: LineStyle.Dotted,
-                lastValueVisible: false,
-                priceLineVisible: false,
-            });
+            const lastCandle = candles[candles.length - 1];
 
-            const lowerSeries = chart.addLineSeries({
-                color: "rgba(56, 189, 248, 0.9)",
-                lineWidth: 1,
-                lineStyle: LineStyle.Dotted,
-                lastValueVisible: false,
-                priceLineVisible: false,
-            });
+            if (lastCandle && typeof lastCandle.close === "number") {
+                const lastTime = lastCandle.time;
+                const lastClose = lastCandle.close;
 
-            const meanSeries = chart.addLineSeries({
-                color: "rgba(56, 189, 248, 0.5)",  // 약간 연한 실선
-                lineWidth: 2,
-                lineStyle: LineStyle.Solid,
-                lastValueVisible: false,
-                priceLineVisible: false,
-            });
+                // (1) 위쪽 Max 영역: 현재가 → upper
+                const upperArea = chart.addAreaSeries({
+                    topColor: "rgba(34, 197, 94, 0.25)",   // 초록 영역
+                    bottomColor: "rgba(34, 197, 94, 0.0)",
+                    lineColor: "rgba(34, 197, 94, 0.9)",
+                    lineWidth: 1,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                });
 
-            upperSeries.setData(
-                forecastBand.map((p) => ({ time: p.time, value: p.upper }))
-            );
-            lowerSeries.setData(
-                forecastBand.map((p) => ({ time: p.time, value: p.lower }))
-            );
-            meanSeries.setData(
-                forecastBand.map((p) => ({ time: p.time, value: p.mean }))
-            );
+                const upperAreaData = [
+                    { time: lastTime, value: lastClose },
+                    ...forecastBand.map((p) => ({
+                        time: p.time,
+                        value: p.upper,
+                    })),
+                ];
+                upperArea.setData(upperAreaData);
+
+                // (2) 아래 Min 영역: 현재가 → lower
+                const lowerArea = chart.addAreaSeries({
+                    topColor: "rgba(248, 113, 113, 0.0)",
+                    bottomColor: "rgba(248, 113, 113, 0.25)", // 붉은 영역
+                    lineColor: "rgba(248, 113, 113, 0.9)",
+                    lineWidth: 1,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                });
+
+                const lowerAreaData = [
+                    { time: lastTime, value: lastClose },
+                    ...forecastBand.map((p) => ({
+                        time: p.time,
+                        value: p.lower,
+                    })),
+                ];
+                lowerArea.setData(lowerAreaData);
+
+                // (3) 평균선: 현재가 → mean
+                const meanSeries = chart.addLineSeries({
+                    color: "rgba(59, 130, 246, 0.9)", // 파란 평균선
+                    lineWidth: 2,
+                    lineStyle: LineStyle.Solid,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                });
+
+                const meanData = [
+                    { time: lastTime, value: lastClose },
+                    ...forecastBand.map((p) => ({
+                        time: p.time,
+                        value: p.mean,
+                    })),
+                ];
+                meanSeries.setData(meanData);
+
+                // (4) 마지막 예측 지점에 Max / Avg / Min 라벨
+                const lastForecast = forecastBand[forecastBand.length - 1];
+
+                const formatPrice = (value) =>
+                    isKorean
+                        ? Math.round(value).toLocaleString("ko-KR")
+                        : Number(value)
+                            .toFixed(2)
+                            .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+                upperArea.createPriceLine({
+                    price: lastForecast.upper,
+                    color: "rgba(34, 197, 94, 1)",
+                    lineWidth: 1,
+                    lineStyle: LineStyle.Solid,
+                    axisLabelVisible: true,
+                    title: `Max ${formatPrice(lastForecast.upper)}`,
+                });
+
+                meanSeries.createPriceLine({
+                    price: lastForecast.mean,
+                    color: "rgba(59, 130, 246, 1)",
+                    lineWidth: 1,
+                    lineStyle: LineStyle.Solid,
+                    axisLabelVisible: true,
+                    title: `Avg ${formatPrice(lastForecast.mean)}`,
+                });
+
+                lowerArea.createPriceLine({
+                    price: lastForecast.lower,
+                    color: "rgba(248, 113, 113, 1)",
+                    lineWidth: 1,
+                    lineStyle: LineStyle.Solid,
+                    axisLabelVisible: true,
+                    title: `Min ${formatPrice(lastForecast.lower)}`,
+                });
+            }
         }
 
         // ============================
@@ -221,15 +275,15 @@ const PriceChart = ({
         const last = candles[candles.length - 1];
         if (last && typeof last.close === "number") {
             const priceValue = isKorean
-                ? Math.round(last.close)        // 원: 정수
-                : Number(last.close.toFixed(2)); // 달러: 소수 2자리
+                ? Math.round(last.close)
+                : Number(last.close.toFixed(2));
 
             priceSeries.createPriceLine({
                 price: priceValue,
-                color: "#ef4444",               // 빨간 점선
+                color: "#ef4444",
                 lineWidth: 1,
                 lineStyle: LineStyle.Dashed,
-                axisLabelVisible: true,         // 오른쪽에 "현재가" 라벨
+                axisLabelVisible: true,
                 title: "현재가",
             });
         }
@@ -247,7 +301,6 @@ const PriceChart = ({
 
         window.addEventListener("resize", handleResize);
 
-        // useEffect clean-up
         return () => {
             window.removeEventListener("resize", handleResize);
             if (chartRef.current) {
@@ -255,10 +308,9 @@ const PriceChart = ({
                 chartRef.current = null;
             }
         };
-        // forecastBand가 바뀌어도 차트를 다시 그리도록 dependency에 포함
     }, [candles, chartType, isKorean, forecastBand]);
 
-    // 데이터가 전혀 없을 때 보여줄 플레이스홀더
+    // 데이터 없을 때 플레이스홀더
     if (!candles.length) {
         return (
             <div className="flex h-80 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/60 text-sm text-slate-400">
@@ -267,7 +319,6 @@ const PriceChart = ({
         );
     }
 
-    // 실제 차트가 렌더링될 컨테이너
     return (
         <div className="h-full w-full">
             <div ref={containerRef} className="w-full h-full" />
