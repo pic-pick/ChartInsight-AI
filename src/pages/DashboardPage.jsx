@@ -4,7 +4,11 @@ import PriceChart from "../components/charts/PriceChart";
 import PortfolioTable from "../components/portfolio/PortfolioTable";
 import AiAnalysisPanel from "../components/analysis/AiAnalysisPanel";
 import SearchBar from "../components/SearchBar";
-import { fetchStockCandles } from "../api/stockApi";
+import {
+    fetchForecastBand,
+    fetchForecastAccuracy,
+    fetchStockCandles,
+} from "../api/stockApi";
 
 // 테스트용 포트폴리오 데이터 (그대로 사용)
 const MOCK_PORTFOLIO = [
@@ -61,7 +65,9 @@ const DashboardPage = () => {
 
     const [candles, setCandles] = useState([]);
     const [forecastBand, setForecastBand] = useState([]); // ✅ 예측 밴드
+    const [forecastMonths, setForecastMonths] = useState(3); // 1~6개월 사이 선택
     const [viewMode, setViewMode] = useState("chart"); // "chart" | "ai"
+    const [accuracy, setAccuracy] = useState(null);
 
     // 기간: 일 / 주 / 월 / 년
     const [timeframe, setTimeframe] = useState("D"); // "D" | "W" | "M" | "Y"
@@ -69,6 +75,10 @@ const DashboardPage = () => {
 
     const [isLoadingCandles, setIsLoadingCandles] = useState(false);
     const [candlesError, setCandlesError] = useState(null);
+    const [isLoadingForecast, setIsLoadingForecast] = useState(false);
+    const [forecastError, setForecastError] = useState(null);
+    const [isLoadingAccuracy, setIsLoadingAccuracy] = useState(false);
+    const [accuracyError, setAccuracyError] = useState(null);
 
     // 마지막 캔들 기준 현재가
     const lastPrice = useMemo(
@@ -113,6 +123,8 @@ const DashboardPage = () => {
         return sym;
     };
 
+    const monthsToBusinessDays = (months) => Math.max(1, Math.round(months * 21));
+
     // ✅ symbol / market / timeframe 이 바뀔 때마다 자동으로 캔들 로딩
     useEffect(() => {
         if (!symbol) return;
@@ -143,6 +155,60 @@ const DashboardPage = () => {
         { value: "M", label: "월" },
         { value: "Y", label: "년" },
     ];
+
+    const FORECAST_RANGE_OPTIONS = [
+        { value: 1, label: "1개월" },
+        { value: 3, label: "3개월" },
+        { value: 6, label: "6개월" },
+    ];
+
+    useEffect(() => {
+        if (!symbol) return;
+
+        const loadForecast = async () => {
+            try {
+                setIsLoadingForecast(true);
+                setForecastError(null);
+
+                const providerSymbol = getProviderSymbol(symbol, market);
+                const horizonDays = monthsToBusinessDays(forecastMonths);
+                const data = await fetchForecastBand(providerSymbol, horizonDays);
+                setForecastBand(data || []);
+            } catch (err) {
+                console.error("예측 밴드 로딩 오류:", err);
+                setForecastError("예측 밴드를 불러오는 중 문제가 발생했습니다.");
+                setForecastBand([]);
+            } finally {
+                setIsLoadingForecast(false);
+            }
+        };
+
+        loadForecast();
+    }, [symbol, market, forecastMonths]);
+
+    useEffect(() => {
+        if (!symbol) return;
+
+        const loadAccuracy = async () => {
+            try {
+                setIsLoadingAccuracy(true);
+                setAccuracyError(null);
+
+                const providerSymbol = getProviderSymbol(symbol, market);
+                const holdoutDays = monthsToBusinessDays(forecastMonths);
+                const metrics = await fetchForecastAccuracy(providerSymbol, holdoutDays);
+                setAccuracy(metrics);
+            } catch (err) {
+                console.error("정확도 검증 오류:", err);
+                setAccuracy(null);
+                setAccuracyError("최근 홀드아웃 예측 정확도를 계산하지 못했습니다.");
+            } finally {
+                setIsLoadingAccuracy(false);
+            }
+        };
+
+        loadAccuracy();
+    }, [symbol, market, forecastMonths]);
 
     return (
         <div className="text-slate-100">
@@ -218,7 +284,7 @@ const DashboardPage = () => {
                     </div>
 
                     {viewMode === "chart" && (
-                        <div className="flex items-center gap-3 justify-between sm:justify-end">
+                        <div className="flex flex-wrap items-center gap-3 justify-between sm:justify-end">
                             {/* 기간 버튼: 일 / 주 / 월 / 년 */}
                             <div className="flex items-center gap-1">
                                 {TIMEFRAME_OPTIONS.map((p) => (
@@ -235,6 +301,53 @@ const DashboardPage = () => {
                                         {p.label}
                                     </button>
                                 ))}
+                            </div>
+
+                            {/* 예측 범위 (최대 6개월) */}
+                            <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                                <span className="text-slate-500">예측 범위</span>
+                                {FORECAST_RANGE_OPTIONS.map((range) => (
+                                    <button
+                                        key={range.value}
+                                        type="button"
+                                        onClick={() => setForecastMonths(range.value)}
+                                        className={`px-2 py-1 rounded-full border transition ${
+                                            forecastMonths === range.value
+                                                ? "bg-emerald-600/80 border-emerald-400 text-white"
+                                                : "border-slate-700 text-slate-300 hover:border-slate-500"
+                                        }`}
+                                    >
+                                        {range.label}
+                                    </button>
+                                ))}
+                                <span className="text-[10px] text-slate-500">
+                                    {isLoadingForecast
+                                        ? "예측 업데이트 중..."
+                                        : `미래 ${forecastMonths}개월 밴드`}
+                                </span>
+                                {forecastError && (
+                                    <span className="text-[10px] text-red-400">
+                                        {forecastError}
+                                    </span>
+                                )}
+                                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                                    {isLoadingAccuracy ? (
+                                        <span>정확도 검증 중...</span>
+                                    ) : accuracyError ? (
+                                        <span className="text-red-400">{accuracyError}</span>
+                                    ) : accuracy ? (
+                                        <>
+                                            <span className="text-slate-400">MAPE</span>
+                                            <span className="font-semibold text-emerald-300">
+                                                {accuracy.mape?.toFixed(2)}%
+                                            </span>
+                                            <span className="text-slate-500">· RMSE</span>
+                                            <span className="font-semibold text-emerald-300">
+                                                {accuracy.rmse?.toFixed(2)}
+                                            </span>
+                                        </>
+                                    ) : null}
+                                </div>
                             </div>
 
                             {/* 캔들 / 라인 타입 */}
