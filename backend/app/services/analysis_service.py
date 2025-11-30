@@ -223,8 +223,8 @@ def _예측밴드_요약(symbol: str, horizon_days: int = 63) -> Optional[밴드
         return None
 
 
-def _내러티브_작성(ind: 지표스냅샷, band: Optional[밴드요약]) -> Dict[str, str]:
-    """Generate richer Korean NLP-style commentary from multi-factor signals."""
+def _신호문맥_작성(ind: 지표스냅샷, band: Optional[밴드요약]) -> Dict[str, str]:
+    """계산된 지표를 한국어 문장으로 풀어 LLM 프롬프트에 재사용한다."""
 
     ma_gap_pct = (ind.sma20 / ind.sma60 - 1) * 100 if ind.sma60 else 0
     trend_bias = "우상향" if ma_gap_pct > 1 else "중립" if -1 <= ma_gap_pct <= 1 else "하락 반전"
@@ -245,14 +245,38 @@ def _내러티브_작성(ind: 지표스냅샷, band: Optional[밴드요약]) -> 
     volatility_sentence = f"연율화 변동성 {ind.hv20_pct:.1f}% (리스크 {risk_label}) · 최대낙폭 {ind.mdd_pct:.1f}%"
     volume_sentence = f"거래량 {vol_state}({ind.volume_ratio_pct:+.0f}% vs 20일 평균), 투자심리도 {ind.psy10_pct:.0f}%"
 
-    summary_parts = [trend_sentence, momentum_sentence, volatility_sentence, volume_sentence, band_phrase]
+    return {
+        "trend_sentence": trend_sentence,
+        "momentum_sentence": momentum_sentence,
+        "volatility_sentence": volatility_sentence,
+        "volume_sentence": volume_sentence,
+        "band_phrase": band_phrase,
+        "risk_label": risk_label,
+        "trend_bias": trend_bias,
+        "macd_state": macd_state,
+        "rsi_state": rsi_state,
+        "vol_state": vol_state,
+    }
+
+
+def _내러티브_작성(ind: 지표스냅샷, band: Optional[밴드요약], 신호문맥: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """Generate richer Korean NLP-style commentary from multi-factor signals."""
+
+    신호문맥 = 신호문맥 or _신호문맥_작성(ind, band)
+    summary_parts = [
+        신호문맥["trend_sentence"],
+        신호문맥["momentum_sentence"],
+        신호문맥["volatility_sentence"],
+        신호문맥["volume_sentence"],
+        신호문맥["band_phrase"],
+    ]
     summary = " | ".join(summary_parts)
 
     quick_notes = [
         f"볼린저 상단 {ind.boll_upper:,.0f} / 하단 {ind.boll_lower:,.0f} 인근 반응을 확인하세요.",
         f"HV20 {ind.hv20_pct:.1f}%·ATR14 {ind.atr14:,.0f} 수준에서 손익비를 재점검",
-        f"거래량 흐름: {vol_state}, 심리 {ind.psy10_pct:.0f}% → {'관심 매수' if ind.psy10_pct > 60 else '관망'}",
-        f"RSI {ind.rsi14:.0f}·MACD {macd_state} 조합으로 모멘텀 체크",
+        f"거래량 흐름: {신호문맥['vol_state']}, 심리 {ind.psy10_pct:.0f}% → {'관심 매수' if ind.psy10_pct > 60 else '관망'}",
+        f"RSI {ind.rsi14:.0f}·MACD {신호문맥['macd_state']} 조합으로 모멘텀 체크",
     ]
 
     상승_actions = [
@@ -265,11 +289,11 @@ def _내러티브_작성(ind: 지표스냅샷, band: Optional[밴드요약]) -> 
         "2) RSI 과매도 해소 전까지 추격 매수를 자제하고 단계적 진입을 설계하세요.",
         "3) 밴드 하단·최근 저점 부근에서는 손절선을 짧게 설정합니다.",
     ]
-    actions = 상승_actions if trend_bias == "우상향" else 하락_actions
+    actions = 상승_actions if 신호문맥["trend_bias"] == "우상향" else 하락_actions
 
     return {
         "summary": summary,
-        "risk_label": risk_label,
+        "risk_label": 신호문맥["risk_label"],
         "quick_notes": quick_notes,
         "actions": actions,
     }
@@ -357,7 +381,8 @@ def 결정인사이트_생성(symbol: str, period: str = "1y") -> Dict:
             + (f"VKOSPI {ind.vkospi_level:.1f} (변동성 {ind.vkospi_change_pct:+.1f}%)" if ind.vkospi_level else "VKOSPI 데이터 없음")
         )
 
-        rule_narrative = _내러티브_작성(ind, band)
+        신호문맥 = _신호문맥_작성(ind, band)
+        rule_narrative = _내러티브_작성(ind, band, 신호문맥)
         rule_alerts = _알림_리스트(ind, band)
 
         llm_payload = {
@@ -371,6 +396,8 @@ def 결정인사이트_생성(symbol: str, period: str = "1y") -> Dict:
             "confidence_label": confidence_label,
             "fear_greed": fear_greed,
             "confidence_reason": confidence_reason,
+            "signal_texts": 신호문맥,
+            "sentiment_note": sentiment_note,
         }
 
         llm_brief = llm_브리핑_생성(
@@ -378,6 +405,7 @@ def 결정인사이트_생성(symbol: str, period: str = "1y") -> Dict:
             band.__dict__ if band else None,
             rule_narrative,
             rule_alerts,
+            신호문맥,
         )
 
         narrative_source = "rule"

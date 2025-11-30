@@ -69,6 +69,7 @@ def _프롬프트_작성(
     band: Optional[Dict],
     rule_narrative: Optional[Dict],
     rule_alerts: Optional[list[str]],
+    signal_texts: Optional[Dict],
 ) -> str:
     band_text = "없음" if not band else (
         f"{band.get('horizon_label','밴드')} | 상단 {band.get('upper'):.1f} · 하단 {band.get('lower'):.1f} · 중심 {band.get('center'):.1f}"
@@ -78,6 +79,7 @@ def _프롬프트_작성(
     rule_notes = (rule_narrative or {}).get("quick_notes") or []
     rule_actions = (rule_narrative or {}).get("actions") or []
     rule_alert_texts = rule_alerts or []
+    signal_texts = signal_texts or {}
 
     return f"""
 당신은 한국어를 사용하는 퀀트 리서치 애널리스트입니다.
@@ -98,6 +100,17 @@ JSON 브리핑을 작성하세요. 기존 규칙 기반 문장들을 더 읽기 
 
 예측 밴드 요약:
 {band_text}
+
+계산된 신호 문장(참고용, 자연스럽게 재작성):
+trend: {signal_texts.get('trend_sentence')}
+momentum: {signal_texts.get('momentum_sentence')}
+volatility: {signal_texts.get('volatility_sentence')}
+volume/sentiment: {signal_texts.get('volume_sentence')}
+band: {signal_texts.get('band_phrase')}
+
+신뢰도·심리 메모:
+confidence_reason: {indicators.get('confidence_reason')}
+sentiment_note: {indicators.get('sentiment_note')}
 
 기존 규칙 기반 요약(참고용, 더 자연스럽게 재작성):
 summary: {rule_summary}
@@ -120,12 +133,13 @@ def llm_브리핑_생성(
     band: Optional[Dict],
     rule_narrative: Optional[Dict] = None,
     rule_alerts: Optional[list[str]] = None,
+    signal_texts: Optional[Dict] = None,
 ) -> Optional[Dict]:
     if not OPENAI_API_KEY:
         logger.info("OPENAI_API_KEY 미설정: LLM 브리핑을 건너뜁니다.")
         return None
 
-    prompt = _프롬프트_작성(indicators, band, rule_narrative, rule_alerts)
+    prompt = _프롬프트_작성(indicators, band, rule_narrative, rule_alerts, signal_texts)
     url = f"{OPENAI_BASE_URL.rstrip('/')}/chat/completions"
     headers = {
         "Authorization": f"Bearer {OPENAI_API_KEY}",
