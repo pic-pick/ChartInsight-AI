@@ -55,6 +55,13 @@ MACD·RSI·볼린저·변동성·밴드 정보를 입력으로 한
 - `OPENAI_MODEL` : 선택, 기본 `gpt-4o-mini`
 - `OPENAI_BASE_URL`, `OPENAI_TEMPERATURE` : 선택
 
+실행 전에는 루트 경로에 `.env` 파일을 만들어 OpenAI 키를 넣어주세요. 예시:
+
+```
+cp .env.example .env
+echo "OPENAI_API_KEY=발급받은_키" >> .env
+```
+
 ---
 
 ## ✨ 주요 기능
@@ -105,6 +112,26 @@ MACD·RSI·볼린저·변동성·밴드 정보를 입력으로 한
 - Statsmodels(ARIMA) / scikit-learn  
 
 ### Database
-- SQLite 또는 PostgreSQL  
+- SQLite 또는 PostgreSQL
 
 ---
+
+## 🧪 테스트 및 실행 점검
+
+### 프런트엔드 단위 테스트 실행
+- CRA 기본 Jest 환경을 사용합니다.
+- CI 모드로 한 번만 돌리려면 아래 명령을 사용하세요:
+
+```
+CI=true npm test -- --watch=false
+```
+
+### 백엔드 FastAPI 서버 확인
+- 가상환경을 활성화한 뒤 의존성을 설치하고 로컬 서버를 띄울 수 있습니다.
+
+```
+pip install -r requirements.txt
+uvicorn backend.app.main:app --reload
+```
+
+테스트 실행 시 OpenAI 키(.env)가 설정되어 있으면 LLM 브리핑 호출까지 함께 검증됩니다.
