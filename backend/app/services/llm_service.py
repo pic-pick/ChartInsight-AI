@@ -51,11 +51,14 @@ def _load_env_file() -> None:
 
             if "=" in line:
                 key, _, value = line.partition("=")
-                key, value = key.strip(), value.strip()
+            elif ":" in line:
+                key, _, value = line.partition(":")
             elif default_key:
-                key, value = default_key, line.strip()
+                key, value = default_key, line
             else:
                 continue
+
+            key, value = key.strip(), value.strip()
 
             if not key or not value or key in os.environ:
                 continue
@@ -66,25 +69,39 @@ def _load_env_file() -> None:
 
             os.environ[key] = value
 
-    env_candidates = [
-        base_path.parents[3] / ".env",  # project root
-        base_path.parents[2] / ".env",  # backend/.env (fallback)
-    ]
+    def _find_repo_root() -> Path | None:
+        for parent in base_path.parents:
+            if (parent / ".git").exists():
+                return parent
+        return None
 
-    for env_path in env_candidates:
-        if env_path.exists():
+    repo_root = _find_repo_root()
+    search_roots = []
+    if repo_root:
+        search_roots.append(repo_root)
+    search_roots.extend(list(base_path.parents[:5]))
+
+    visited: set[Path] = set()
+    for root in search_roots:
+        env_path = (root / ".env").resolve()
+        if env_path.exists() and env_path not in visited:
+            visited.add(env_path)
             _parse_lines(env_path.read_text(encoding="utf-8"))
 
     llm_file_path = os.getenv("LLM_FILE")
-    if llm_file_path:
-        llm_paths = [Path(llm_file_path)]
-    else:
-        llm_paths = [
-            base_path.parents[3] / "llm_file",  # project root (custom secret file)
-            base_path.parents[2] / "llm_file",  # backend/llm_file
-        ]
+    llm_candidates: list[Path] = []
 
-    for llm_path in llm_paths:
+    if llm_file_path:
+        explicit = Path(llm_file_path).expanduser()
+        llm_candidates.append(explicit)
+        if not explicit.is_absolute():
+            llm_candidates.append((repo_root or base_path.parents[3]) / explicit)
+            llm_candidates.append(Path.cwd() / explicit)
+    else:
+        for root in search_roots:
+            llm_candidates.append((root / "llm_file").resolve())
+
+    for llm_path in llm_candidates:
         if llm_path.exists():
             _parse_lines(llm_path.read_text(encoding="utf-8"), default_key="OPENAI_API_KEY")
 
