@@ -20,11 +20,37 @@ import json
 import logging
 import os
 import time
+from pathlib import Path
 from typing import Dict, Optional
 
 import requests
 
 logger = logging.getLogger(__name__)
+
+
+def _load_env_file() -> None:
+    """Load environment variables from a local .env file if present.
+
+    This allows local development environments to enable LLM briefings
+    without exporting variables globally. Values already present in
+    ``os.environ`` are left untouched.
+    """
+
+    env_path = Path(__file__).resolve().parents[2] / ".env"
+    if not env_path.exists():
+        return
+
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        if not line or line.lstrip().startswith("#"):
+            continue
+
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip()
+        if key and value and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_env_file()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
