@@ -1,7 +1,7 @@
 # app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import stocks, forecast
+from .routers import forecast, stocks, symbols
 
 app = FastAPI()
 
@@ -28,3 +28,4 @@ app.add_middleware(
 app.include_router(stocks.router, prefix="/api")
 
 app.include_router(forecast.router, prefix="/api")
+app.include_router(symbols.router, prefix="/api")

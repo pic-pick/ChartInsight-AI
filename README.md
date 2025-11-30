@@ -120,11 +120,12 @@ LLM 브리핑 동작 여부는 아래 헬스체크 스크립트로 바로 확인
 - Axios  
 
 ### Backend
-- FastAPI  
-- Python  
-- Pandas / Numpy  
-- yfinance 또는 pykrx  
-- Statsmodels(ARIMA) / scikit-learn  
+- FastAPI
+- Python
+- Pandas / Numpy
+- yfinance 또는 pykrx
+- Statsmodels(ARIMA) / scikit-learn
+- Finnhub(심볼 메타데이터 조회, `FINNHUB_API_KEY` 필요)
 
 ### Database
 - SQLite 또는 PostgreSQL
@@ -148,5 +149,10 @@ CI=true npm test -- --watch=false
 pip install -r requirements.txt
 uvicorn backend.app.main:app --reload
 ```
+
+- 종목 메타데이터(`/api/symbols`)를 사용하려면 Finnhub API 키를 환경 변수로 설정하세요.
+  ```
+  export FINNHUB_API_KEY=your_finnhub_token
+  ```
 
 테스트 실행 시 OpenAI 키(.env)가 설정되어 있으면 LLM 브리핑 호출까지 함께 검증됩니다.

@@ -1,9 +1,11 @@
+import os
+
 import httpx
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/symbols", tags=["Symbols"])
 
-FINNHUB_KEY = "cvfud71r01qtu9s6p18gcvfud71r01qtu9s6p190"
+FINNHUB_KEY = os.getenv("FINNHUB_API_KEY")
 
 EXCHANGES = [
     ("US", "US"),
@@ -14,6 +16,9 @@ EXCHANGES = [
 @router.get("/")
 async def get_all_symbols():
     """국내 + 미국 모든 티커 리스트 반환"""
+    if not FINNHUB_KEY:
+        raise HTTPException(500, "FINNHUB_API_KEY 환경 변수가 필요합니다")
+
     all_symbols = []
 
     async with httpx.AsyncClient() as client:
