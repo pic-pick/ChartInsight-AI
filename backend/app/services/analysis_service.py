@@ -10,7 +10,7 @@ data-driven guidance instead of static dummy text.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -18,6 +18,7 @@ import pandas as pd
 import yfinance as yf
 
 from .forecast_service import get_forecast_band
+from .llm_service import llm_브리핑_생성
 
 logger = logging.getLogger(__name__)
 
@@ -359,6 +360,18 @@ def 결정인사이트_생성(symbol: str, period: str = "1y") -> Dict:
         narrative = _내러티브_작성(ind, band)
         alerts = _알림_리스트(ind, band)
 
+        llm_brief = llm_브리핑_생성(asdict(ind), band.__dict__ if band else None)
+        narrative_source = "rule"
+        if llm_brief:
+            narrative_source = "openai"
+            narrative = {
+                "summary": llm_brief.get("summary") or narrative["summary"],
+                "risk_label": narrative["risk_label"],
+                "quick_notes": llm_brief.get("quick_notes") or narrative["quick_notes"],
+                "actions": llm_brief.get("actions") or narrative["actions"],
+            }
+            alerts = llm_brief.get("alerts") or alerts
+
         return {
             "symbol": symbol,
             "last_price": ind.close,
@@ -369,6 +382,9 @@ def 결정인사이트_생성(symbol: str, period: str = "1y") -> Dict:
             "confidence_label": confidence_label,
             "confidence_reason": confidence_reason,
             "risk_label": narrative["risk_label"],
+            "narrative_source": narrative_source,
+            "llm_model": llm_brief.get("model") if llm_brief else None,
+            "llm_latency_ms": llm_brief.get("latency_ms") if llm_brief else None,
             "band": band.__dict__ if band else None,
             "summary": narrative["summary"],
             "quick_notes": narrative["quick_notes"],

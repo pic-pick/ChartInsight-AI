@@ -86,6 +86,9 @@ class DecisionInsight(BaseModel):
     confidence_label: str | None = None
     confidence_reason: str | None = None
     risk_label: str
+    narrative_source: str | None = None
+    llm_model: str | None = None
+    llm_latency_ms: float | None = None
     band: dict | None = None
     summary: str
     quick_notes: list[str]
