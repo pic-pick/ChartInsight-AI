@@ -370,6 +370,7 @@ def 결정인사이트_생성(symbol: str, period: str = "1y") -> Dict:
             "confidence": confidence,
             "confidence_label": confidence_label,
             "fear_greed": fear_greed,
+            "confidence_reason": confidence_reason,
         }
 
         llm_brief = llm_브리핑_생성(
