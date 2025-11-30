@@ -20,10 +20,15 @@ import json
 import logging
 import os
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Dict, Optional
 
-import requests
+try:  # requests가 없을 때도 동작하도록 표준 라이브러리 폴백을 둔다.
+    import requests  # type: ignore
+except Exception:  # pragma: no cover - 설치가 안 된 환경 대비
+    requests = None
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +67,40 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", "0.35"))
+
+
+class _HttpResponse:
+    def __init__(self, status_code: int, content: bytes, headers=None, error: Exception | None = None):
+        self.status_code = status_code
+        self.content = content
+        self.headers = headers or {}
+        self._error = error
+
+    def json(self):
+        return json.loads(self.content.decode("utf-8"))
+
+    def raise_for_status(self):
+        if 400 <= self.status_code:
+            if self._error:
+                raise self._error
+            raise RuntimeError(f"HTTP {self.status_code}: {self.content[:200]!r}")
+
+
+def _http_post(url: str, headers: Dict[str, str], body: Dict, timeout: int) -> _HttpResponse:
+    """POST 요청을 수행한다. requests가 없으면 urllib를 사용한다."""
+
+    if requests:
+        resp = requests.post(url, headers=headers, json=body, timeout=timeout)
+        return _HttpResponse(resp.status_code, resp.content, resp.headers, None)
+
+    logger.debug("requests 미설치: urllib.request로 POST 수행")
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:  # type: ignore[arg-type]
+            return _HttpResponse(status_code=r.status, content=r.read(), headers=r.headers)
+    except urllib.error.HTTPError as e:
+        return _HttpResponse(status_code=e.code, content=e.read(), headers=e.headers, error=e)
 
 
 def _프롬프트_작성(
@@ -157,7 +196,7 @@ def llm_브리핑_생성(
 
     start = time.perf_counter()
     try:
-        resp = requests.post(url, headers=headers, json=body, timeout=25)
+        resp = _http_post(url, headers=headers, body=body, timeout=25)
         resp.raise_for_status()
         data = resp.json()
         content = data["choices"][0]["message"]["content"]

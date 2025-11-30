@@ -62,6 +62,17 @@ cp .env.example .env
 echo "OPENAI_API_KEY=발급받은_키" >> .env
 ```
 
+LLM 브리핑 동작 여부는 아래 헬스체크 스크립트로 바로 확인할 수 있습니다.
+
+- 외부망이 막힌 환경(기본 모드):
+  ```
+  python backend/app/scripts/llm_healthcheck.py
+  ```
+- 실제 OpenAI 응답 확인(키 필요):
+  ```
+  OPENAI_API_KEY=... python backend/app/scripts/llm_healthcheck.py --live
+  ```
+
 ---
 
 ## ✨ 주요 기능
