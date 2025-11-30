@@ -408,9 +408,14 @@ def 결정인사이트_생성(symbol: str, period: str = "1y") -> Dict:
             신호문맥,
         )
 
-        narrative_source = "rule"
-        narrative = rule_narrative
-        alerts = rule_alerts
+        narrative_source = "llm_unavailable"
+        narrative = {
+            "summary": "LLM 응답이 없어 코멘트를 제공할 수 없습니다.",
+            "risk_label": rule_narrative["risk_label"],
+            "quick_notes": [],
+            "actions": [],
+        }
+        alerts = []
         llm_model = None
         llm_latency = None
         llm_attempted = llm_brief.get("attempted") if llm_brief else False
@@ -420,12 +425,12 @@ def 결정인사이트_생성(symbol: str, period: str = "1y") -> Dict:
         if llm_brief and llm_brief.get("summary"):
             narrative_source = "openai"
             narrative = {
-                "summary": llm_brief.get("summary") or rule_narrative["summary"],
+                "summary": llm_brief.get("summary"),
                 "risk_label": rule_narrative["risk_label"],
-                "quick_notes": llm_brief.get("quick_notes") or rule_narrative["quick_notes"],
-                "actions": llm_brief.get("actions") or rule_narrative["actions"],
+                "quick_notes": llm_brief.get("quick_notes") or [],
+                "actions": llm_brief.get("actions") or [],
             }
-            alerts = llm_brief.get("alerts") or rule_alerts
+            alerts = llm_brief.get("alerts") or []
             llm_model = llm_brief.get("model")
             llm_latency = llm_brief.get("latency_ms")
 
