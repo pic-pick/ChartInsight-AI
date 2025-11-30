@@ -26,7 +26,7 @@
 ---
 
 ### ✔ 2. 자동 분석 코멘트 생성 (Rule-based NLP)
-지표 계산 결과를 조합해  
+지표 계산 결과를 조합해
 사용자에게 자연스러운 문장을 자동으로 생성합니다.
 
 예시:
@@ -44,6 +44,23 @@
 - 전략 신호 자동 판단
 
 이는 규칙 기반 로직 + 간단한 ML 모델을 활용합니다.
+
+### ✔ 2-1. LLM 기반 브리핑 (옵션)
+규칙 기반 해설 대신 **OpenAI Chat Completions API**를 호출해
+MACD·RSI·볼린저·변동성·밴드 정보를 입력으로 한
+맞춤 브리핑/행동 가이드/모니터링 포인트를 JSON으로 생성할 수 있습니다.
+
+환경 변수 예시:
+- `OPENAI_API_KEY` : 필수 (미설정 시 자동으로 룰 기반 해설로 폴백)
+- `OPENAI_MODEL` : 선택, 기본 `gpt-4o-mini`
+- `OPENAI_BASE_URL`, `OPENAI_TEMPERATURE` : 선택
+
+실행 전에는 루트 경로에 `.env` 파일을 만들어 OpenAI 키를 넣어주세요. 예시:
+
+```
+cp .env.example .env
+echo "OPENAI_API_KEY=발급받은_키" >> .env
+```
 
 ---
 
@@ -95,6 +112,26 @@
 - Statsmodels(ARIMA) / scikit-learn  
 
 ### Database
-- SQLite 또는 PostgreSQL  
+- SQLite 또는 PostgreSQL
 
 ---
+
+## 🧪 테스트 및 실행 점검
+
+### 프런트엔드 단위 테스트 실행
+- CRA 기본 Jest 환경을 사용합니다.
+- CI 모드로 한 번만 돌리려면 아래 명령을 사용하세요:
+
+```
+CI=true npm test -- --watch=false
+```
+
+### 백엔드 FastAPI 서버 확인
+- 가상환경을 활성화한 뒤 의존성을 설치하고 로컬 서버를 띄울 수 있습니다.
+
+```
+pip install -r requirements.txt
+uvicorn backend.app.main:app --reload
+```
+
+테스트 실행 시 OpenAI 키(.env)가 설정되어 있으면 LLM 브리핑 호출까지 함께 검증됩니다.

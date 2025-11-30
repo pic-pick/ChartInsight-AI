@@ -4,6 +4,7 @@ from typing import List, Dict, Tuple
 
 import yfinance as yf
 import pandas as pd
+import numpy as np
 from statsmodels.tsa.arima.model import ARIMA
 from datetime import timedelta
 
@@ -24,7 +25,7 @@ def get_forecast_band(
     symbol : str
         예: 'AAPL', '005930.KS' 같은 종목 심볼
     horizon : int, optional
-        몇 영업일 앞으로 예측할지 (기본값 20)
+        몇 영업일 앞으로 예측할지 (기본값 20, 최대 약 6개월)
     conf : float, optional
         0~1 사이 신뢰 수준 (예: 0.9 = 90% 구간)
     period : str, optional
@@ -40,6 +41,13 @@ def get_forecast_band(
 
     if horizon <= 0:
         raise ValueError("horizon must be a positive integer")
+
+    # 약 6개월(21 영업일 * 6)까지 허용
+    max_horizon = 21 * 6
+    if horizon > max_horizon:
+        raise ValueError(
+            f"horizon exceeds supported window (max {max_horizon} business days, ~6 months)"
+        )
 
     if not (0 < conf < 1):
         raise ValueError("conf must be between 0 and 1")
@@ -97,4 +105,73 @@ def get_forecast_band(
     except Exception:
         # 로그만 찍고, FastAPI 레이어에서 HTTPException 으로 감싸도록 다시 raise
         logger.exception("Failed to generate forecast band for %s", symbol)
+        raise
+
+
+def evaluate_forecast_accuracy(
+    symbol: str,
+    holdout_days: int = 63,
+    period: str = "2y",
+    arima_order: Tuple[int, int, int] = (1, 1, 1),
+) -> Dict[str, float]:
+    """간단한 홀드아웃 기반 ARIMA 예측 정확도 검증."""
+
+    if holdout_days <= 0:
+        raise ValueError("holdout_days must be a positive integer")
+
+    max_horizon = 21 * 6
+    if holdout_days > max_horizon:
+        raise ValueError(
+            f"holdout_days exceeds supported window (max {max_horizon} business days, ~6 months)"
+        )
+
+    try:
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period=period)
+
+        if hist.empty:
+            raise ValueError(f"No historical data found for symbol={symbol!r}")
+
+        close = hist["Close"].dropna()
+
+        if len(close) <= holdout_days:
+            raise ValueError(
+                f"Not enough data to evaluate accuracy: need more than {holdout_days} data points"
+            )
+
+        train = close.iloc[:-holdout_days]
+        test = close.iloc[-holdout_days:]
+
+        if len(train) < sum(arima_order) + 5:
+            raise ValueError(
+                "Not enough training data to fit ARIMA model for symbol={} (got {} points)".format(
+                    symbol, len(train)
+                )
+            )
+
+        model = ARIMA(train, order=arima_order)
+        res = model.fit()
+
+        forecast_res = res.get_forecast(steps=holdout_days)
+        mean_forecast = forecast_res.predicted_mean
+
+        # 테스트 구간과 맞춰서 간단한 지표 계산
+        actual = test.values
+        pred = mean_forecast.values
+
+        mae = float(np.mean(np.abs(actual - pred)))
+        rmse = float(np.sqrt(np.mean((actual - pred) ** 2)))
+        mape = float(np.mean(np.abs((actual - pred) / actual)) * 100)
+
+        return {
+            "symbol": symbol,
+            "holdout_days": holdout_days,
+            "mae": mae,
+            "rmse": rmse,
+            "mape": mape,
+            "test_points": len(actual),
+        }
+
+    except Exception:
+        logger.exception("Failed to evaluate forecast accuracy for %s", symbol)
         raise

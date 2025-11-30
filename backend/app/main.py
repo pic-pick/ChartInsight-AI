@@ -5,6 +5,12 @@ from .routers import stocks, forecast
 
 app = FastAPI()
 
+
+@app.get("/api/health")
+def 건강_체크():
+    """서버 상태를 확인하는 간단한 헬스 체크 엔드포인트."""
+    return {"status": "ok"}
+
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
