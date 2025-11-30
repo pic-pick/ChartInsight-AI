@@ -76,17 +76,28 @@ const DashboardPage = () => {
         if (!종목코드) return;
 
         const 캔들불러오기 = async () => {
+            const providerSymbol = 외부심볼변환(종목코드, 시장구분);
+            const cacheKey = `candles:${providerSymbol}:${차트주기}`;
+
             try {
+                // 즉시 보여줄 캐시
+                const cached = localStorage.getItem(cacheKey);
+                if (cached) {
+                    캔들설정(JSON.parse(cached));
+                }
+
                 캔들로딩설정(true);
                 캔들오류설정(null);
 
-                const providerSymbol = 외부심볼변환(종목코드, 시장구분);
                 const data = await fetchStockCandles(providerSymbol, 차트주기);
                 캔들설정(data || []);
+                localStorage.setItem(cacheKey, JSON.stringify(data || []));
             } catch (err) {
                 console.error("캔들 데이터 로딩 오류:", err);
                 캔들오류설정("차트 데이터를 불러오는 중 문제가 발생했습니다.");
-                캔들설정([]);
+                if (!캔들목록.length) {
+                    캔들설정([]);
+                }
             } finally {
                 캔들로딩설정(false);
             }
@@ -112,18 +123,28 @@ const DashboardPage = () => {
         if (!종목코드) return;
 
         const 예측불러오기 = async () => {
+            const providerSymbol = 외부심볼변환(종목코드, 시장구분);
+            const horizonDays = 개월수를영업일로(예측개월수);
+            const cacheKey = `forecast:${providerSymbol}:${horizonDays}`;
+
             try {
+                const cached = localStorage.getItem(cacheKey);
+                if (cached) {
+                    예측밴드설정(JSON.parse(cached));
+                }
+
                 예측로딩설정(true);
                 예측오류설정(null);
 
-                const providerSymbol = 외부심볼변환(종목코드, 시장구분);
-                const horizonDays = 개월수를영업일로(예측개월수);
                 const data = await fetchForecastBand(providerSymbol, horizonDays);
                 예측밴드설정(data || []);
+                localStorage.setItem(cacheKey, JSON.stringify(data || []));
             } catch (err) {
                 console.error("예측 밴드 로딩 오류:", err);
                 예측오류설정("예측 밴드를 불러오는 중 문제가 발생했습니다.");
-                예측밴드설정([]);
+                if (!예측밴드.length) {
+                    예측밴드설정([]);
+                }
             } finally {
                 예측로딩설정(false);
             }
@@ -136,18 +157,28 @@ const DashboardPage = () => {
         if (!종목코드) return;
 
         const 정확도불러오기 = async () => {
+            const providerSymbol = 외부심볼변환(종목코드, 시장구분);
+            const holdoutDays = 개월수를영업일로(예측개월수);
+            const cacheKey = `accuracy:${providerSymbol}:${holdoutDays}`;
+
             try {
+                const cached = localStorage.getItem(cacheKey);
+                if (cached) {
+                    정확도설정(JSON.parse(cached));
+                }
+
                 정확도로딩설정(true);
                 정확도오류설정(null);
 
-                const providerSymbol = 외부심볼변환(종목코드, 시장구분);
-                const holdoutDays = 개월수를영업일로(예측개월수);
                 const metrics = await fetchForecastAccuracy(providerSymbol, holdoutDays);
                 정확도설정(metrics);
+                localStorage.setItem(cacheKey, JSON.stringify(metrics || {}));
             } catch (err) {
                 console.error("정확도 검증 오류:", err);
-                정확도설정(null);
                 정확도오류설정("최근 홀드아웃 예측 정확도를 계산하지 못했습니다.");
+                if (!정확도) {
+                    정확도설정(null);
+                }
             } finally {
                 정확도로딩설정(false);
             }
