@@ -357,20 +357,45 @@ def 결정인사이트_생성(symbol: str, period: str = "1y") -> Dict:
             + (f"VKOSPI {ind.vkospi_level:.1f} (변동성 {ind.vkospi_change_pct:+.1f}%)" if ind.vkospi_level else "VKOSPI 데이터 없음")
         )
 
-        narrative = _내러티브_작성(ind, band)
-        alerts = _알림_리스트(ind, band)
+        rule_narrative = _내러티브_작성(ind, band)
+        rule_alerts = _알림_리스트(ind, band)
 
-        llm_brief = llm_브리핑_생성(asdict(ind), band.__dict__ if band else None)
+        llm_payload = {
+            **asdict(ind),
+            "trend_score": trend_score,
+            "momentum_score": momentum_score,
+            "volatility_score": volatility_score,
+            "volatility_label": volatility_label,
+            "band_range_pct": band_range_pct,
+            "confidence": confidence,
+            "confidence_label": confidence_label,
+            "fear_greed": fear_greed,
+        }
+
+        llm_brief = llm_브리핑_생성(
+            llm_payload,
+            band.__dict__ if band else None,
+            rule_narrative,
+            rule_alerts,
+        )
+
         narrative_source = "rule"
+        narrative = rule_narrative
+        alerts = rule_alerts
+        llm_model = None
+        llm_latency = None
+
         if llm_brief:
             narrative_source = "openai"
             narrative = {
-                "summary": llm_brief.get("summary") or narrative["summary"],
-                "risk_label": narrative["risk_label"],
-                "quick_notes": llm_brief.get("quick_notes") or narrative["quick_notes"],
-                "actions": llm_brief.get("actions") or narrative["actions"],
+                "summary": llm_brief.get("summary") or rule_narrative["summary"],
+                "risk_label": rule_narrative["risk_label"],
+                "quick_notes": llm_brief.get("quick_notes") or rule_narrative["quick_notes"],
+                "actions": llm_brief.get("actions") or rule_narrative["actions"],
             }
-            alerts = llm_brief.get("alerts") or alerts
+            alerts = llm_brief.get("alerts") or rule_alerts
+            llm_model = llm_brief.get("model")
+            llm_latency = llm_brief.get("latency_ms")
 
         return {
             "symbol": symbol,
@@ -383,8 +408,8 @@ def 결정인사이트_생성(symbol: str, period: str = "1y") -> Dict:
             "confidence_reason": confidence_reason,
             "risk_label": narrative["risk_label"],
             "narrative_source": narrative_source,
-            "llm_model": llm_brief.get("model") if llm_brief else None,
-            "llm_latency_ms": llm_brief.get("latency_ms") if llm_brief else None,
+            "llm_model": llm_model,
+            "llm_latency_ms": llm_latency,
             "band": band.__dict__ if band else None,
             "summary": narrative["summary"],
             "quick_notes": narrative["quick_notes"],
