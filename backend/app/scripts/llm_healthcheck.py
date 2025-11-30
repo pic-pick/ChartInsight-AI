@@ -83,7 +83,12 @@ def _sample_payload() -> Dict:
 
 def _ensure_module_path():
     backend_root = Path(__file__).resolve().parents[2]
-    sys.path.append(str(backend_root))
+    backend_root_str = str(backend_root)
+
+    # Local backend code must precede site-packages so the in-repo ``app``
+    # package wins over any globally installed ``app`` module.
+    if backend_root_str not in sys.path:
+        sys.path.insert(0, backend_root_str)
 
 
 def run_healthcheck(use_live: bool = False) -> Dict | None:
