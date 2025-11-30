@@ -5,6 +5,5 @@ numpy
 yfinance
 statsmodels
 pydantic
-httpx
 requests
 FinanceDataReader
