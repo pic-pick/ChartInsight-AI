@@ -62,6 +62,12 @@ def get_forecast_band(
 
         close = hist["Close"].dropna()
 
+        # statsmodels 경고(`no frequency information`)를 줄이기 위해 모형 적합 시에는
+        # 단순 RangeIndex를 사용하고, 미래 시점 계산에 필요한 원본 날짜는 별도로 보관한다.
+        last_date = close.index[-1]
+        close_for_model = close.copy()
+        close_for_model.index = pd.RangeIndex(len(close_for_model))
+
         # 데이터가 너무 적으면 ARIMA 적합이 불안정하므로 예외 처리
         if len(close) < sum(arima_order) + 5:
             raise ValueError(
@@ -71,7 +77,7 @@ def get_forecast_band(
             )
 
         # ARIMA 간단 예시 (모형 차수는 파라미터로 받되 기본값 고정)
-        model = ARIMA(close, order=arima_order)
+        model = ARIMA(close_for_model, order=arima_order)
         res = model.fit()
 
         forecast_res = res.get_forecast(steps=horizon)
@@ -82,7 +88,6 @@ def get_forecast_band(
         lower = conf_int.iloc[:, 0]
         upper = conf_int.iloc[:, 1]
 
-        last_date = close.index[-1]
         future_index = pd.date_range(
             last_date + timedelta(days=1),
             periods=horizon,
@@ -134,13 +139,16 @@ def evaluate_forecast_accuracy(
 
         close = hist["Close"].dropna()
 
+        close_for_model = close.copy()
+        close_for_model.index = pd.RangeIndex(len(close_for_model))
+
         if len(close) <= holdout_days:
             raise ValueError(
                 f"Not enough data to evaluate accuracy: need more than {holdout_days} data points"
             )
 
-        train = close.iloc[:-holdout_days]
-        test = close.iloc[-holdout_days:]
+        train = close_for_model.iloc[:-holdout_days]
+        test = close_for_model.iloc[-holdout_days:]
 
         if len(train) < sum(arima_order) + 5:
             raise ValueError(

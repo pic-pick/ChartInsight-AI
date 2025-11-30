@@ -148,20 +148,36 @@ def _기술지표_계산(df: pd.DataFrame) -> 지표스냅샷:
 
 def _vkospi_조회() -> tuple[Optional[float], Optional[float]]:
     """Pull the latest VKOSPI level and daily change as a market sentiment proxy."""
+    import io
+    import warnings
+    from contextlib import redirect_stderr, redirect_stdout
 
-    try:
-        vkospi = yf.Ticker("^VKOSPI")
-        hist = vkospi.history(period="5d")
-        if hist.empty:
+    def _fetch(symbol: str) -> tuple[Optional[float], Optional[float]]:
+        try:
+            ticker = yf.Ticker(symbol)
+            with warnings.catch_warnings(), redirect_stdout(io.StringIO()), redirect_stderr(
+                io.StringIO()
+            ):
+                warnings.filterwarnings("ignore")
+                hist = ticker.history(period="5d", raise_errors=False)
+
+            if hist.empty:
+                return None, None
+
+            last_close = hist["Close"].iloc[-1]
+            prev_close = hist["Close"].iloc[-2] if len(hist) > 1 else last_close
+            change_pct = (last_close / prev_close - 1) * 100 if prev_close else 0.0
+            return float(last_close), float(change_pct)
+        except Exception:
+            logger.exception("Failed to fetch %s", symbol)
             return None, None
 
-        last_close = hist["Close"].iloc[-1]
-        prev_close = hist["Close"].iloc[-2] if len(hist) > 1 else last_close
-        change_pct = (last_close / prev_close - 1) * 100 if prev_close else 0.0
-        return float(last_close), float(change_pct)
-    except Exception:
-        logger.exception("Failed to fetch VKOSPI")
-        return None, None
+    # 1순위 VKOSPI, 데이터가 없으면 글로벌 변동성 프록시(VIX)로 대체
+    level, change = _fetch("^VKOSPI")
+    if level is not None:
+        return level, change
+
+    return _fetch("^VIX")
 
 
 def _변동성점수_계산(hv20_pct: float) -> int:
