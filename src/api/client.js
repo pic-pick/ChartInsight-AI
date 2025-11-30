@@ -1,8 +1,14 @@
 import axios from "axios";
 
+// 기본값: 현재 호스트의 /api 엔드포인트를 사용
+// 필요하면 .env 의 REACT_APP_API_BASE_URL 로 재정의 가능
+const defaultBaseURL = typeof window !== "undefined"
+    ? `${window.location.origin}/api`
+    : "http://localhost:8000/api";
+
 const apiClient = axios.create({
-    baseURL: "http://192.168.0.53:8000/api", // 👈 여기 IP를 지금 쓰는 거랑 맞추기
-    timeout: 5000,
+    baseURL: process.env.REACT_APP_API_BASE_URL || defaultBaseURL,
+    timeout: 8000,
 });
 
 export default apiClient;

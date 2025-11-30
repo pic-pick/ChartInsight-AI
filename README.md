@@ -62,6 +62,10 @@ cp .env.example .env
 echo "OPENAI_API_KEY=발급받은_키" >> .env
 ```
 
+보안상 환경변수에 직접 노출하기 어렵다면, 루트에 `llm_file`을 두거나
+`LLM_FILE=/path/to/secret`로 경로를 지정해 키 값을 적어둘 수도 있습니다
+(파일에 `OPENAI_API_KEY=...` 혹은 키 한 줄만 있어도 자동으로 로드됩니다).
+
 LLM 브리핑 동작 여부는 아래 헬스체크 스크립트로 바로 확인할 수 있습니다.
 
 - 외부망이 막힌 환경(기본 모드):
@@ -116,11 +120,12 @@ LLM 브리핑 동작 여부는 아래 헬스체크 스크립트로 바로 확인
 - Axios  
 
 ### Backend
-- FastAPI  
-- Python  
-- Pandas / Numpy  
-- yfinance 또는 pykrx  
-- Statsmodels(ARIMA) / scikit-learn  
+- FastAPI
+- Python
+- Pandas / Numpy
+- yfinance 또는 pykrx
+- Statsmodels(ARIMA) / scikit-learn
+- Finnhub(심볼 메타데이터 조회, `FINNHUB_API_KEY` 필요)
 
 ### Database
 - SQLite 또는 PostgreSQL
@@ -141,8 +146,13 @@ CI=true npm test -- --watch=false
 - 가상환경을 활성화한 뒤 의존성을 설치하고 로컬 서버를 띄울 수 있습니다.
 
 ```
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 uvicorn backend.app.main:app --reload
 ```
+
+- 종목 메타데이터(`/api/symbols`)를 사용하려면 Finnhub API 키를 환경 변수로 설정하세요.
+  ```
+  export FINNHUB_API_KEY=your_finnhub_token
+  ```
 
 테스트 실행 시 OpenAI 키(.env)가 설정되어 있으면 LLM 브리핑 호출까지 함께 검증됩니다.

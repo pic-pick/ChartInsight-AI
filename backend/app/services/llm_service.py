@@ -34,31 +34,76 @@ logger = logging.getLogger(__name__)
 
 
 def _load_env_file() -> None:
-    """Load environment variables from a local .env file if present.
+    """Load environment variables from local secret files if present.
 
-    Checks both the repository root (`../../..`) and backend folder so the
-    LLM 분석 서비스 picks up keys defined in the documented root `.env`.
-    Values already present in ``os.environ`` are left untouched.
+    The loader now understands both conventional ``.env`` files **and** a
+    custom ``llm_file`` (or a path supplied via ``LLM_FILE``), which some
+    deployments use to avoid committing keys to environment variables
+    directly. Values already present in ``os.environ`` are left untouched.
     """
 
     base_path = Path(__file__).resolve()
-    candidates = [
-        base_path.parents[3] / ".env",  # project root
-        base_path.parents[2] / ".env",  # backend/.env (fallback)
-    ]
 
-    for env_path in candidates:
-        if not env_path.exists():
-            continue
-
-        for line in env_path.read_text(encoding="utf-8").splitlines():
+    def _parse_lines(content: str, default_key: str | None = None) -> None:
+        for line in content.splitlines():
             if not line or line.lstrip().startswith("#"):
                 continue
 
-            key, _, value = line.partition("=")
+            if "=" in line:
+                key, _, value = line.partition("=")
+            elif ":" in line:
+                key, _, value = line.partition(":")
+            elif default_key:
+                key, value = default_key, line
+            else:
+                continue
+
             key, value = key.strip(), value.strip()
-            if key and value and key not in os.environ:
-                os.environ[key] = value
+
+            if not key or not value or key in os.environ:
+                continue
+
+            # allow quoted values like OPENAI_API_KEY="sk-..."
+            if value.startswith(("'", '"')) and value.endswith(("'", '"')):
+                value = value[1:-1]
+
+            os.environ[key] = value
+
+    def _find_repo_root() -> Path | None:
+        for parent in base_path.parents:
+            if (parent / ".git").exists():
+                return parent
+        return None
+
+    repo_root = _find_repo_root()
+    search_roots = []
+    if repo_root:
+        search_roots.append(repo_root)
+    search_roots.extend(list(base_path.parents[:5]))
+
+    visited: set[Path] = set()
+    for root in search_roots:
+        env_path = (root / ".env").resolve()
+        if env_path.exists() and env_path not in visited:
+            visited.add(env_path)
+            _parse_lines(env_path.read_text(encoding="utf-8"))
+
+    llm_file_path = os.getenv("LLM_FILE")
+    llm_candidates: list[Path] = []
+
+    if llm_file_path:
+        explicit = Path(llm_file_path).expanduser()
+        llm_candidates.append(explicit)
+        if not explicit.is_absolute():
+            llm_candidates.append((repo_root or base_path.parents[3]) / explicit)
+            llm_candidates.append(Path.cwd() / explicit)
+    else:
+        for root in search_roots:
+            llm_candidates.append((root / "llm_file").resolve())
+
+    for llm_path in llm_candidates:
+        if llm_path.exists():
+            _parse_lines(llm_path.read_text(encoding="utf-8"), default_key="OPENAI_API_KEY")
 
 
 _load_env_file()

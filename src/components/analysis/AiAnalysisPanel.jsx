@@ -91,11 +91,19 @@ const Ai분석패널 = ({ symbol, market }) => {
         if (!제공용심볼) return;
 
         const load = async () => {
+            const cacheKey = `decision:${제공용심볼}`;
             try {
+                const cached = localStorage.getItem(cacheKey);
+                if (cached) {
+                    분석데이터설정(JSON.parse(cached));
+                }
+
                 불러오는중설정(true);
                 오류메시지설정(null);
                 const res = await fetchStockDecisionInsight(제공용심볼);
-                분석데이터설정({ name: symbol, market, ...기본분석값, ...res });
+                const next = { name: symbol, market, ...기본분석값, ...res };
+                분석데이터설정(next);
+                localStorage.setItem(cacheKey, JSON.stringify(next));
             } catch (err) {
                 console.error("AI 분석 패널 로딩 오류", err);
                 오류메시지설정("AI 분석 정보를 불러오지 못했습니다.");
