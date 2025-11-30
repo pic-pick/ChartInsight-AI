@@ -413,8 +413,11 @@ def 결정인사이트_생성(symbol: str, period: str = "1y") -> Dict:
         alerts = rule_alerts
         llm_model = None
         llm_latency = None
+        llm_attempted = llm_brief.get("attempted") if llm_brief else False
+        llm_error = llm_brief.get("error") if llm_brief else None
+        llm_http_status = llm_brief.get("http_status") if llm_brief else None
 
-        if llm_brief:
+        if llm_brief and llm_brief.get("summary"):
             narrative_source = "openai"
             narrative = {
                 "summary": llm_brief.get("summary") or rule_narrative["summary"],
@@ -439,6 +442,11 @@ def 결정인사이트_생성(symbol: str, period: str = "1y") -> Dict:
             "narrative_source": narrative_source,
             "llm_model": llm_model,
             "llm_latency_ms": llm_latency,
+            "llm_status": {
+                "attempted": llm_attempted,
+                "http_status": llm_http_status,
+                "error": llm_error,
+            },
             "band": band.__dict__ if band else None,
             "summary": narrative["summary"],
             "quick_notes": narrative["quick_notes"],

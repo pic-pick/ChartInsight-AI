@@ -173,10 +173,15 @@ def llm_브리핑_생성(
     rule_narrative: Optional[Dict] = None,
     rule_alerts: Optional[list[str]] = None,
     signal_texts: Optional[Dict] = None,
-) -> Optional[Dict]:
+) -> Dict:
+    """LLM 브리핑을 요청하고 시도/실패 정보를 함께 반환한다."""
+
+    metadata: Dict = {"attempted": False, "error": None, "http_status": None}
+
     if not OPENAI_API_KEY:
+        metadata["error"] = "OPENAI_API_KEY missing"
         logger.info("OPENAI_API_KEY 미설정: LLM 브리핑을 건너뜁니다.")
-        return None
+        return metadata
 
     prompt = _프롬프트_작성(indicators, band, rule_narrative, rule_alerts, signal_texts)
     url = f"{OPENAI_BASE_URL.rstrip('/')}/chat/completions"
@@ -194,9 +199,13 @@ def llm_브리핑_생성(
         ],
     }
 
+    logger.info("LLM 요청 시작 | model=%s base_url=%s", OPENAI_MODEL, OPENAI_BASE_URL)
     start = time.perf_counter()
+    metadata["attempted"] = True
+
     try:
         resp = _http_post(url, headers=headers, body=body, timeout=25)
+        metadata["http_status"] = resp.status_code
         resp.raise_for_status()
         data = resp.json()
         content = data["choices"][0]["message"]["content"]
@@ -209,7 +218,9 @@ def llm_브리핑_생성(
             "alerts": parsed.get("alerts"),
             "model": data.get("model", OPENAI_MODEL),
             "latency_ms": latency_ms,
+            **metadata,
         }
-    except Exception:
+    except Exception as exc:
+        metadata["error"] = str(exc)
         logger.exception("OpenAI 브리핑 생성 실패")
-        return None
+        return metadata
