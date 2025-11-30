@@ -223,35 +223,48 @@ def _예측밴드_요약(symbol: str, horizon_days: int = 63) -> Optional[밴드
 
 
 def _내러티브_작성(ind: 지표스냅샷, band: Optional[밴드요약]) -> Dict[str, str]:
-    ma_gap_pct = (ind.sma20 / ind.sma60 - 1) * 100 if ind.sma60 else 0
-    trend_bias = "완만한 상승" if ma_gap_pct > 1 else "중립" if -1 <= ma_gap_pct <= 1 else "하락"
-    risk_label = "높음" if ind.hv20_pct > 45 or ind.mdd_pct < -25 else "중간" if ind.hv20_pct > 25 else "낮음"
-    macd_state = "상향" if ind.macd_hist > 0 else "하향"
-    rsi_state = "과매수" if ind.rsi14 >= 70 else "중립" if ind.rsi14 > 35 else "과매도"
-    vol_state = "거래량 급증" if ind.volume_ratio_pct > 30 else "평균 수준" if ind.volume_ratio_pct > -20 else "거래량 둔화"
+    """Generate richer Korean NLP-style commentary from multi-factor signals."""
 
+    ma_gap_pct = (ind.sma20 / ind.sma60 - 1) * 100 if ind.sma60 else 0
+    trend_bias = "우상향" if ma_gap_pct > 1 else "중립" if -1 <= ma_gap_pct <= 1 else "하락 반전"
+    macd_state = "상승 전환" if ind.macd_hist > 0 and ind.macd_line > ind.macd_signal else "하락 전환"
+    rsi_state = "과매수" if ind.rsi14 >= 70 else "중립" if ind.rsi14 > 35 else "과매도"
+    vol_state = "거래량 급증" if ind.volume_ratio_pct > 40 else "유입" if ind.volume_ratio_pct > 10 else "평균" if ind.volume_ratio_pct > -15 else "유출"
+    risk_label = "높음" if ind.hv20_pct > 45 or ind.mdd_pct < -25 else "중간" if ind.hv20_pct > 25 else "낮음"
+
+    band_span_pct = ((band.upper - band.lower) / band.center * 100) if band and band.center else None
     band_phrase = (
-        f"밴드 폭 {((band.upper - band.lower) / band.center * 100):.1f}%" if band else "밴드 정보 없음"
+        f"{band.horizon_label} 밴드 폭 {band_span_pct:.1f}% ({band.lower:,.0f}~{band.upper:,.0f})"
+        if band and band_span_pct is not None
+        else "예측 밴드 정보 없음"
     )
-    summary = (
-        f"20일선 대비 60일선 {ma_gap_pct:+.1f}%로 추세는 {trend_bias}, "
-        f"최근 모멘텀 {ind.momentum20_pct:+.1f}%와 연율화 변동성 {ind.hv20_pct:.1f}% (리스크 {risk_label}). "
-        f"MACD {macd_state}, RSI {ind.rsi14:.0f}({rsi_state}), 거래량 {vol_state}. "
-        + (f"{band.horizon_label} {band.lower:,.0f}~{band.upper:,.0f} ({band_phrase})." if band else "예측 밴드 대기 중.")
-    )
+
+    trend_sentence = f"20일선 대비 60일선 {ma_gap_pct:+.1f}% → 추세 {trend_bias}"
+    momentum_sentence = f"최근 20일 모멘텀 {ind.momentum20_pct:+.1f}%·MACD {macd_state}·RSI {ind.rsi14:.0f}({rsi_state})"
+    volatility_sentence = f"연율화 변동성 {ind.hv20_pct:.1f}% (리스크 {risk_label}) · 최대낙폭 {ind.mdd_pct:.1f}%"
+    volume_sentence = f"거래량 {vol_state}({ind.volume_ratio_pct:+.0f}% vs 20일 평균), 투자심리도 {ind.psy10_pct:.0f}%"
+
+    summary_parts = [trend_sentence, momentum_sentence, volatility_sentence, volume_sentence, band_phrase]
+    summary = " | ".join(summary_parts)
 
     quick_notes = [
-        f"모멘텀 {ind.momentum20_pct:+.1f}% · HV20 {ind.hv20_pct:.1f}% → {risk_label} 변동성 구간",
-        f"MACD {macd_state} · RSI {ind.rsi14:.0f} ({rsi_state}) · 투자심리도 {ind.psy10_pct:.0f}%",
-        f"거래량 {ind.volume_ratio_pct:+.0f}% vs 20일 평균 · ATR14 {ind.atr14:,.0f} · 최대 낙폭 {ind.mdd_pct:.1f}%",
-        "볼린저 상·하단/예측 밴드 인근에서는 분할 대응과 포지션 조절을 병행하세요.",
+        f"볼린저 상단 {ind.boll_upper:,.0f} / 하단 {ind.boll_lower:,.0f} 인근 반응을 확인하세요.",
+        f"HV20 {ind.hv20_pct:.1f}%·ATR14 {ind.atr14:,.0f} 수준에서 손익비를 재점검",
+        f"거래량 흐름: {vol_state}, 심리 {ind.psy10_pct:.0f}% → {'관심 매수' if ind.psy10_pct > 60 else '관망'}",
+        f"RSI {ind.rsi14:.0f}·MACD {macd_state} 조합으로 모멘텀 체크",
     ]
 
-    actions = [
-        "1) 상승 추세 유지 시 눌림 구간에서 분할 매수, 60일선 훼손 시 비중 축소",
-        "2) 거래량이 20일 평균 대비 크게 붙을 때 돌파/가속 여부 확인",
-        "3) 밴드 하단 근처에서는 손절·헤지 조건을 미리 설정",
+    상승_actions = [
+        "1) 추세 우상향 시 눌림 구간을 분할매수하고 상단 밴드 접근 시 익절 구간을 나눕니다.",
+        "2) 거래량 급증 구간에서 돌파/가속 여부를 확인해 추가 비중 조절을 검토합니다.",
+        "3) 밴드 하단 근접 시 손절·헤지 조건을 사전에 명시하세요.",
     ]
+    하락_actions = [
+        "1) 주요 이동평균 이탈 시 반등 구간에서 비중 축소를 우선 고려합니다.",
+        "2) RSI 과매도 해소 전까지 추격 매수를 자제하고 단계적 진입을 설계하세요.",
+        "3) 밴드 하단·최근 저점 부근에서는 손절선을 짧게 설정합니다.",
+    ]
+    actions = 상승_actions if trend_bias == "우상향" else 하락_actions
 
     return {
         "summary": summary,
