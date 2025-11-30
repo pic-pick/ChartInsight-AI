@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import PriceChart from "../components/charts/PriceChart";
 import PortfolioTable from "../components/portfolio/PortfolioTable";
-import Ai분석패널 from "../components/analysis/AiAnalysisPanel";
+import AiAnalysisPanel from "../components/analysis/AiAnalysisPanel";
 import SearchBar from "../components/SearchBar";
 import {
     fetchForecastBand,
@@ -95,9 +95,7 @@ const DashboardPage = () => {
             } catch (err) {
                 console.error("캔들 데이터 로딩 오류:", err);
                 캔들오류설정("차트 데이터를 불러오는 중 문제가 발생했습니다.");
-                if (!캔들목록.length) {
-                    캔들설정([]);
-                }
+                캔들설정((prev) => (prev && prev.length ? prev : []));
             } finally {
                 캔들로딩설정(false);
             }
@@ -142,9 +140,7 @@ const DashboardPage = () => {
             } catch (err) {
                 console.error("예측 밴드 로딩 오류:", err);
                 예측오류설정("예측 밴드를 불러오는 중 문제가 발생했습니다.");
-                if (!예측밴드.length) {
-                    예측밴드설정([]);
-                }
+                예측밴드설정((prev) => (prev && prev.length ? prev : []));
             } finally {
                 예측로딩설정(false);
             }
@@ -176,9 +172,7 @@ const DashboardPage = () => {
             } catch (err) {
                 console.error("정확도 검증 오류:", err);
                 정확도오류설정("최근 홀드아웃 예측 정확도를 계산하지 못했습니다.");
-                if (!정확도) {
-                    정확도설정(null);
-                }
+                정확도설정((prev) => (prev ? prev : null));
             } finally {
                 정확도로딩설정(false);
             }
@@ -410,7 +404,7 @@ const DashboardPage = () => {
                             )}
                         </div>
                     ) : (
-                        <Ai분석패널 symbol={종목코드} market={시장구분} />
+                        <AiAnalysisPanel symbol={종목코드} market={시장구분} />
                     )}
                 </div>
             </section>
