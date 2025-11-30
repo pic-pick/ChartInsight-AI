@@ -1,5 +1,7 @@
+import csv
 import json
 import os
+from pathlib import Path
 import urllib.error
 import urllib.request
 from typing import Iterable
@@ -14,12 +16,43 @@ EXCHANGES: Iterable[tuple[str, str]] = (
     ("KOSDAQ", "KQ"),
 )
 
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+CSV_SOURCES: Iterable[tuple[str, str]] = (
+    ("stocks_kr.csv", "KOSPI/KOSDAQ"),
+    ("stocks_us.csv", "US"),
+)
 
-def _require_finnhub_key() -> str:
-    key = os.getenv("FINNHUB_API_KEY")
-    if not key:
-        raise HTTPException(500, "FINNHUB_API_KEY 환경 변수가 필요합니다")
-    return key
+
+def _fallback_csv_symbols() -> list[dict]:
+    """Return cached CSV symbols when Finnhub is unavailable."""
+
+    symbols: list[dict] = []
+    for filename, label in CSV_SOURCES:
+        path = DATA_DIR / filename
+        if not path.exists():
+            continue
+
+        with path.open(newline="", encoding="utf-8-sig") as fp:
+            reader = csv.DictReader(fp)
+            for row in reader:
+                symbol = (row.get("symbol") or "").strip()
+                name = (row.get("name") or "").strip()
+                if not symbol or not name:
+                    continue
+
+                symbols.append({
+                    "symbol": symbol,
+                    "description": name,
+                    "exchange": label,
+                })
+
+    if not symbols:
+        raise HTTPException(
+            status_code=500,
+            detail="심볼 CSV를 찾을 수 없습니다 (data/stocks_*.csv 확인)",
+        )
+
+    return symbols
 
 def _fetch_json(url: str) -> list[dict]:
     request = urllib.request.Request(url, headers={"User-Agent": "chartinsight-ai/1.0"})
@@ -47,7 +80,11 @@ def _fetch_json(url: str) -> list[dict]:
 @router.get("/")
 def get_all_symbols():
     """국내 + 미국 모든 티커 리스트 반환"""
-    finnhub_key = _require_finnhub_key()
+    finnhub_key = os.getenv("FINNHUB_API_KEY")
+
+    if not finnhub_key:
+        # 키가 없는 로컬 개발 환경에서는 CSV 캐시로 대응
+        return _fallback_csv_symbols()
 
     all_symbols = []
 
@@ -61,7 +98,7 @@ def get_all_symbols():
                 all_symbols.append({
                     "symbol": item["symbol"],
                     "description": item["description"],
-                    "exchange": label
+                    "exchange": label,
                 })
 
     return all_symbols
