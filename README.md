@@ -146,7 +146,7 @@ CI=true npm test -- --watch=false
 - 가상환경을 활성화한 뒤 의존성을 설치하고 로컬 서버를 띄울 수 있습니다.
 
 ```
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 uvicorn backend.app.main:app --reload
 ```
 
